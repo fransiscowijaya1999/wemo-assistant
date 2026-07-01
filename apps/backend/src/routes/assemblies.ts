@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { getDb } from '../db/client';
-import { assemblies } from '../db/schema';
+import { assemblies, assemblyItems, itemResolutions, partNumbers, parts, serviceItems } from '../db/schema';
 import { requireAdmin } from '../middleware/auth';
 
 export const assembliesRoute = new Hono<{ Bindings: Bindings }>();
@@ -21,6 +21,63 @@ assembliesRoute.get('/', async (c) => {
         : isNull(assemblies.deletedAt),
     );
   return c.json(rows);
+});
+
+// Full assembly with its items, each item's canonical part + all its numbers, the
+// per-position resolutions (qty), and the service/FRT items.
+assembliesRoute.get('/:id/full', async (c) => {
+  const db = getDb(c.env);
+  const id = c.req.param('id');
+
+  const assembly = await db.select().from(assemblies).where(eq(assemblies.id, id)).get();
+  if (!assembly) return c.json({ error: 'not found' }, 404);
+
+  const items = await db
+    .select()
+    .from(assemblyItems)
+    .where(and(eq(assemblyItems.assemblyId, id), isNull(assemblyItems.deletedAt)));
+
+  const partIds = [...new Set(items.map((i) => i.basePartId).filter((x): x is string => !!x))];
+  const itemIds = items.map((i) => i.id);
+
+  const partRows = partIds.length ? await db.select().from(parts).where(inArray(parts.id, partIds)) : [];
+  const numberRows = partIds.length
+    ? await db.select().from(partNumbers).where(inArray(partNumbers.partId, partIds))
+    : [];
+  const resolutionRows = itemIds.length
+    ? await db.select().from(itemResolutions).where(inArray(itemResolutions.assemblyItemId, itemIds))
+    : [];
+  const svc = await db
+    .select()
+    .from(serviceItems)
+    .where(and(eq(serviceItems.assemblyId, id), isNull(serviceItems.deletedAt)));
+
+  const partById = new Map(partRows.map((p) => [p.id, p]));
+  const numbersByPart = new Map<string, typeof numberRows>();
+  for (const n of numberRows) {
+    const arr = numbersByPart.get(n.partId) ?? [];
+    arr.push(n);
+    numbersByPart.set(n.partId, arr);
+  }
+  const resByItem = new Map<string, typeof resolutionRows>();
+  for (const r of resolutionRows) {
+    const arr = resByItem.get(r.assemblyItemId) ?? [];
+    arr.push(r);
+    resByItem.set(r.assemblyItemId, arr);
+  }
+
+  return c.json({
+    assembly,
+    items: items.map((i) => {
+      const part = i.basePartId ? partById.get(i.basePartId) : undefined;
+      return {
+        ...i,
+        part: part ? { ...part, numbers: numbersByPart.get(part.id) ?? [] } : null,
+        resolutions: resByItem.get(i.id) ?? [],
+      };
+    }),
+    serviceItems: svc,
+  });
 });
 
 assembliesRoute.get('/:id', async (c) => {
