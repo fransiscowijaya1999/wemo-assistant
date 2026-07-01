@@ -5,6 +5,7 @@ import { assembliesRoute } from './routes/assemblies';
 import { partsRoute } from './routes/parts';
 import { ingestRoute } from './routes/ingest';
 import { syncRoute } from './routes/sync';
+import { chatRoute } from './routes/chat';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -21,6 +22,7 @@ app.route('/assemblies', assembliesRoute);
 app.route('/parts', partsRoute);
 app.route('/ingest', ingestRoute);
 app.route('/sync', syncRoute);
+app.route('/chat', chatRoute);
 
 export default app;
 export type { Bindings };

@@ -1,0 +1,185 @@
+import { and, eq, inArray, isNull, like, or } from 'drizzle-orm';
+import type { Db } from '../db/client';
+import {
+  aliases,
+  assemblies,
+  assemblyItems,
+  colors,
+  machines,
+  partColorVariants,
+  partNumbers,
+  parts,
+} from '../db/schema';
+import type { ChatToolDef, Citation, ToolExecutor } from './chat';
+
+// Read-only catalog lookups exposed to the clerk assistant. Every query is a
+// SELECT filtered to live (non-soft-deleted) rows. No writes exist here.
+
+const SEARCH_LIMIT = 25;
+
+async function searchParts(db: Db, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+  const pattern = `%${q}%`;
+
+  const [byNumber, byName, byAlias] = await Promise.all([
+    db
+      .select({ partId: partNumbers.partId })
+      .from(partNumbers)
+      .where(and(like(partNumbers.value, pattern), isNull(partNumbers.deletedAt))),
+    db
+      .select({ partId: parts.id })
+      .from(parts)
+      .where(and(or(like(parts.nameNormalized, pattern), like(parts.nameRaw, pattern)), isNull(parts.deletedAt))),
+    db
+      .select({ partId: aliases.partId })
+      .from(aliases)
+      .where(and(like(aliases.term, pattern), isNull(aliases.deletedAt))),
+  ]);
+
+  const ids = [...new Set([...byNumber, ...byName, ...byAlias].map((r) => r.partId))].slice(0, SEARCH_LIMIT);
+  if (!ids.length) return [];
+
+  const [partRows, numberRows] = await Promise.all([
+    db.select().from(parts).where(inArray(parts.id, ids)),
+    db.select().from(partNumbers).where(and(inArray(partNumbers.partId, ids), isNull(partNumbers.deletedAt))),
+  ]);
+
+  const primary = new Map<string, string>();
+  const any = new Map<string, string>();
+  for (const n of numberRows) {
+    if (!any.has(n.partId)) any.set(n.partId, n.value);
+    if (n.isPrimary && !primary.has(n.partId)) primary.set(n.partId, n.value);
+  }
+
+  return partRows.map((p) => ({
+    partId: p.id,
+    name: p.nameNormalized ?? p.nameRaw,
+    primaryNumber: primary.get(p.id) ?? any.get(p.id) ?? null,
+  }));
+}
+
+async function getPart(db: Db, args: { partId?: string; number?: string }) {
+  let id = args.partId;
+  if (!id && args.number) {
+    const pn = await db
+      .select({ partId: partNumbers.partId })
+      .from(partNumbers)
+      .where(and(eq(partNumbers.value, args.number), isNull(partNumbers.deletedAt)))
+      .get();
+    id = pn?.partId;
+  }
+  if (!id) return null;
+
+  const part = await db.select().from(parts).where(eq(parts.id, id)).get();
+  if (!part || part.deletedAt) return null;
+
+  const [numberRows, colorRows, aliasRows, placementRows] = await Promise.all([
+    db.select().from(partNumbers).where(and(eq(partNumbers.partId, id), isNull(partNumbers.deletedAt))),
+    db
+      .select({
+        fullNumber: partColorVariants.fullNumber,
+        suffix: partColorVariants.suffixCode,
+        colorCode: colors.code,
+        colorName: colors.name,
+      })
+      .from(partColorVariants)
+      .innerJoin(colors, eq(colors.id, partColorVariants.colorId))
+      .where(and(eq(partColorVariants.partId, id), isNull(partColorVariants.deletedAt))),
+    db.select().from(aliases).where(and(eq(aliases.partId, id), isNull(aliases.deletedAt))),
+    db
+      .select({
+        refNo: assemblyItems.refNo,
+        assemblyCode: assemblies.code,
+        assemblyName: assemblies.name,
+        brand: machines.brand,
+        model: machines.model,
+      })
+      .from(assemblyItems)
+      .innerJoin(assemblies, eq(assemblies.id, assemblyItems.assemblyId))
+      .innerJoin(machines, eq(machines.id, assemblies.machineId))
+      .where(and(eq(assemblyItems.basePartId, id), isNull(assemblyItems.deletedAt))),
+  ]);
+
+  const primaryNumber =
+    numberRows.find((n) => n.isPrimary)?.value ?? numberRows[0]?.value ?? null;
+
+  return {
+    id: part.id,
+    name: part.nameNormalized ?? part.nameRaw,
+    category: part.category,
+    notes: part.notes,
+    primaryNumber,
+    numbers: numberRows.map((n) => ({ value: n.value, kind: n.kind, brand: n.brand, isPrimary: n.isPrimary })),
+    colorVariants: colorRows.map((c) => ({
+      fullNumber: c.fullNumber,
+      suffix: c.suffix,
+      colorCode: c.colorCode,
+      colorName: c.colorName,
+    })),
+    aliases: aliasRows.map((a) => a.term),
+    appearsIn: placementRows.map((p) => ({
+      refNo: p.refNo,
+      assembly: `${p.assemblyCode} ${p.assemblyName}`,
+      machine: `${p.brand} ${p.model}`,
+    })),
+  };
+}
+
+export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
+  {
+    name: 'search_parts',
+    description:
+      'Search the parts catalog by part number (OEM / alternate / superseded / aftermarket), part name, or a local/colloquial term (Indonesian or English). Returns candidate canonical parts with a primary number. Use this first to find a part.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'A part number, part name, or local term to search for.' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_part',
+    description:
+      'Get full detail for one canonical part: all interchangeable numbers (kind/brand), per-color full numbers, aliases, and the diagram positions/machines it appears on. Identify the part by `partId` (from search_parts) or by any `number` belonging to it.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        partId: { type: 'string', description: 'Canonical part id from search_parts.' },
+        number: { type: 'string', description: 'Any part number belonging to the part.' },
+      },
+    },
+  },
+];
+
+/** Bundles the tool executor with a citation collector for one chat turn. */
+export function createCatalogToolset(db: Db): {
+  defs: ChatToolDef[];
+  execute: ToolExecutor;
+  citations: () => Citation[];
+} {
+  const cited = new Map<string, Citation>();
+
+  const execute: ToolExecutor = async (name, input) => {
+    switch (name) {
+      case 'search_parts': {
+        const results = await searchParts(db, String(input.query ?? ''));
+        for (const r of results) cited.set(r.partId, r);
+        return { results };
+      }
+      case 'get_part': {
+        const part = await getPart(db, {
+          partId: input.partId ? String(input.partId) : undefined,
+          number: input.number ? String(input.number) : undefined,
+        });
+        if (part) cited.set(part.id, { partId: part.id, name: part.name, primaryNumber: part.primaryNumber });
+        return part ?? { error: 'not found' };
+      }
+      default:
+        return { error: `unknown tool: ${name}` };
+    }
+  };
+
+  return { defs: CATALOG_TOOL_DEFS, execute, citations: () => [...cited.values()] };
+}

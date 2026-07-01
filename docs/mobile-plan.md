@@ -217,8 +217,14 @@ convention.)
   emulator. (The **Assistant** tab is a placeholder — the read-only, online-only AI chat is the next
   slice; it needs a new clerk-facing backend chat endpoint.)
 - **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
-- **M5 — Polish + online AI fuzzy lookup:** offline indicator, force-full-sync, then the online
-  AI-assisted "describe the vague part" flow (needs a clerk-facing AI endpoint — future backend work).
+- **AI assistant (dedicated tab):** ✅ done. Backend `POST /chat` is a **read-only** clerk assistant
+  — model-agnostic `ChatProvider` seam (Claude, or a keyless `AI_CHAT=stub` for local testing) with
+  only read tools (`search_parts`, `get_part`); it performs no writes (authorization invariant). The
+  Assistant tab is a full chat (bubbles, thinking indicator, offline banner, citation chips → part
+  detail). Verified on the emulator via the stub; real answers need `ANTHROPIC_API_KEY` (`.dev.vars`
+  locally / `wrangler secret` in prod).
+- **M5 — Polish:** remaining offline indicators / force-full-sync affordances and general shop-floor
+  polish. (The online AI fuzzy-lookup flow is delivered by the Assistant tab above.)
 
 ---
 
@@ -230,6 +236,9 @@ convention.)
   bare ms number = the next `since`. `limit` defaults to 1000 (max 5000). `since` alone (no
   `cursor`) still works for a one-shot/first request.
 - `GET /assemblies/:id/image` → image bytes (content-type set). Only assemblies with `imageRef`.
+- `POST /chat` → `{ reply, citations: [{partId,name,primaryNumber}] }` for the assistant. Body:
+  `{ messages: [{role:'user'|'assistant', content}] }`. **Read-only** (look-up tools only). 503 when
+  the model isn't configured; the app shows an offline/not-configured state.
 - Read-only; no auth yet. Base URL is a client setting.
 - Table row shapes = `docs/schema.md`. `users` is **not** synced.
 

@@ -7,6 +7,7 @@ import 'package:wemo_clerk/app.dart';
 import 'package:wemo_clerk/core/db/app_database.dart';
 import 'package:wemo_clerk/core/images/image_store.dart';
 import 'package:wemo_clerk/core/settings/app_settings.dart';
+import 'package:wemo_clerk/features/home/home_shell.dart';
 import 'package:wemo_clerk/features/search/part_detail_screen.dart';
 import 'package:wemo_clerk/features/sync/sync_controller.dart';
 import 'package:wemo_clerk/features/sync/sync_screen.dart';
@@ -79,6 +80,24 @@ void main() {
     await tester.tap(placement);
     await pumpUntil(tester, find.text('1'));
     expect(find.text('1'), findsWidgets, reason: 'balloon dot (refNo 1) not rendered');
+
+    // --- Assistant tab: read-only chat (stub backend) with a part citation --
+    // Pop the pushed routes (diagram + part detail) back to the shell reliably.
+    Navigator.of(tester.element(find.byType(HomeShell))).popUntil((r) => r.isFirst);
+    await tester.pumpAndSettle();
+
+    await tester.tap(navTab('Assistant'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('assistantInput')), 'paking');
+    await tester.tap(find.byIcon(Icons.send));
+
+    const chip = 'Cylinder Head Gasket · 12251-KVY-900';
+    await pumpUntil(tester, find.text(chip));
+    expect(find.text(chip), findsWidgets, reason: 'assistant reply/citation missing');
+
+    await tester.tap(find.text(chip).first);
+    await pumpUntil(tester, find.byType(PartDetailScreen));
+    expect(find.byType(PartDetailScreen), findsOneWidget, reason: 'citation did not open part detail');
 
     await db.close();
   });
