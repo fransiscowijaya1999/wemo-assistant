@@ -8,6 +8,7 @@ See **[CLAUDE.md](./CLAUDE.md)** for the full picture. Key docs:
 
 - **[docs/catalog-format.md](./docs/catalog-format.md)** — how Honda parts catalogs are structured (the source data).
 - **[docs/schema.md](./docs/schema.md)** — the data model and why it looks the way it does.
+- **[docs/mobile-plan.md](./docs/mobile-plan.md)** — build plan for the Flutter clerk app.
 
 ## Components
 

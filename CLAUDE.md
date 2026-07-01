@@ -67,7 +67,7 @@ to approve. Never auto-merge — human verifies.
 apps/backend/     Hono + D1 + Drizzle (this PC)
 apps/admin/       Vite + React admin — extract/review/commit UI (this PC)
 apps/mobile/      Flutter clerk app (planned, main PC)
-docs/             catalog-format.md, schema.md
+docs/             catalog-format.md, schema.md, mobile-plan.md
 ```
 
 ## Development workflow
