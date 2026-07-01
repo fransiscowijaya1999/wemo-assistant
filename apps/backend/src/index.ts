@@ -4,6 +4,7 @@ import { machinesRoute } from './routes/machines';
 import { assembliesRoute } from './routes/assemblies';
 import { partsRoute } from './routes/parts';
 import { ingestRoute } from './routes/ingest';
+import { syncRoute } from './routes/sync';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -19,6 +20,7 @@ app.route('/machines', machinesRoute);
 app.route('/assemblies', assembliesRoute);
 app.route('/parts', partsRoute);
 app.route('/ingest', ingestRoute);
+app.route('/sync', syncRoute);
 
 export default app;
 export type { Bindings };
