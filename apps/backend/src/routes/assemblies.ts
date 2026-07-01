@@ -2,7 +2,15 @@ import { Hono } from 'hono';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { getDb } from '../db/client';
-import { assemblies, assemblyItems, itemResolutions, partNumbers, parts, serviceItems } from '../db/schema';
+import {
+  assemblies,
+  assemblyItems,
+  dots,
+  itemResolutions,
+  partNumbers,
+  parts,
+  serviceItems,
+} from '../db/schema';
 import { requireAdmin } from '../middleware/auth';
 
 export const assembliesRoute = new Hono<{ Bindings: Bindings }>();
@@ -23,8 +31,8 @@ assembliesRoute.get('/', async (c) => {
   return c.json(rows);
 });
 
-// Full assembly with its items, each item's canonical part + all its numbers, the
-// per-position resolutions (qty), and the service/FRT items.
+// Full assembly: items (with canonical part + numbers), per-position resolutions (qty),
+// balloon dots, and the service/FRT items.
 assembliesRoute.get('/:id/full', async (c) => {
   const db = getDb(c.env);
   const id = c.req.param('id');
@@ -47,6 +55,9 @@ assembliesRoute.get('/:id/full', async (c) => {
   const resolutionRows = itemIds.length
     ? await db.select().from(itemResolutions).where(inArray(itemResolutions.assemblyItemId, itemIds))
     : [];
+  const dotRows = itemIds.length
+    ? await db.select().from(dots).where(inArray(dots.assemblyItemId, itemIds))
+    : [];
   const svc = await db
     .select()
     .from(serviceItems)
@@ -65,6 +76,12 @@ assembliesRoute.get('/:id/full', async (c) => {
     arr.push(r);
     resByItem.set(r.assemblyItemId, arr);
   }
+  const dotsByItem = new Map<string, typeof dotRows>();
+  for (const d of dotRows) {
+    const arr = dotsByItem.get(d.assemblyItemId) ?? [];
+    arr.push(d);
+    dotsByItem.set(d.assemblyItemId, arr);
+  }
 
   return c.json({
     assembly,
@@ -74,10 +91,21 @@ assembliesRoute.get('/:id/full', async (c) => {
         ...i,
         part: part ? { ...part, numbers: numbersByPart.get(part.id) ?? [] } : null,
         resolutions: resByItem.get(i.id) ?? [],
+        dots: dotsByItem.get(i.id) ?? [],
       };
     }),
     serviceItems: svc,
   });
+});
+
+// Serve the stored diagram image from R2 (open read; clerk views it too).
+assembliesRoute.get('/:id/image', async (c) => {
+  const obj = await c.env.IMAGES.get(`assemblies/${c.req.param('id')}`);
+  if (!obj) return c.json({ error: 'not found' }, 404);
+  const headers = new Headers();
+  headers.set('Content-Type', obj.httpMetadata?.contentType ?? 'application/octet-stream');
+  headers.set('Cache-Control', 'no-cache');
+  return new Response(obj.body, { headers });
 });
 
 assembliesRoute.get('/:id', async (c) => {
@@ -111,4 +139,60 @@ assembliesRoute.post('/', requireAdmin, async (c) => {
     })
     .returning();
   return c.json(row, 201);
+});
+
+// Store/replace the assembly's diagram image (base64) in R2 and record its dimensions.
+assembliesRoute.post('/:id/image', requireAdmin, async (c) => {
+  const id = c.req.param('id');
+  const db = getDb(c.env);
+  const assembly = await db.select({ id: assemblies.id }).from(assemblies).where(eq(assemblies.id, id)).get();
+  if (!assembly) return c.json({ error: 'not found' }, 404);
+
+  const body = await c.req
+    .json<{ imageBase64?: string; mediaType?: string; width?: number; height?: number }>()
+    .catch(() => null);
+  if (!body?.imageBase64) return c.json({ error: 'imageBase64 is required' }, 400);
+
+  const binary = Uint8Array.from(atob(body.imageBase64), (ch) => ch.charCodeAt(0));
+  const key = `assemblies/${id}`;
+  await c.env.IMAGES.put(key, binary, {
+    httpMetadata: { contentType: body.mediaType ?? 'image/png' },
+  });
+  await db
+    .update(assemblies)
+    .set({ imageRef: key, width: body.width ?? null, height: body.height ?? null, updatedAt: new Date() })
+    .where(eq(assemblies.id, id));
+  return c.json({ ok: true, imageRef: key });
+});
+
+// Replace the full set of balloon dots for this assembly's items (editor saves all at once).
+// x/y are normalized 0..1 relative to the diagram image. A position may have several dots.
+assembliesRoute.put('/:id/dots', requireAdmin, async (c) => {
+  const id = c.req.param('id');
+  const db = getDb(c.env);
+
+  const body = await c.req
+    .json<{ dots?: { assemblyItemId: string; x: number; y: number }[] }>()
+    .catch(() => null);
+  if (!body?.dots) return c.json({ error: 'dots array is required' }, 400);
+
+  const items = await db
+    .select({ id: assemblyItems.id })
+    .from(assemblyItems)
+    .where(eq(assemblyItems.assemblyId, id));
+  const validItemIds = new Set(items.map((i) => i.id));
+  for (const d of body.dots) {
+    if (!validItemIds.has(d.assemblyItemId)) {
+      return c.json({ error: `dot references an item not in this assembly: ${d.assemblyItemId}` }, 400);
+    }
+  }
+
+  const itemIds = items.map((i) => i.id);
+  if (itemIds.length) await db.delete(dots).where(inArray(dots.assemblyItemId, itemIds));
+  if (body.dots.length) {
+    await db.insert(dots).values(
+      body.dots.map((d) => ({ assemblyItemId: d.assemblyItemId, x: d.x, y: d.y })),
+    );
+  }
+  return c.json({ ok: true, count: body.dots.length });
 });
