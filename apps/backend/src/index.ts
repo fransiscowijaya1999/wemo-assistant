@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings } from './bindings';
 import { machinesRoute } from './routes/machines';
 import { assembliesRoute } from './routes/assemblies';
+import { partsRoute } from './routes/parts';
 import { ingestRoute } from './routes/ingest';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -16,6 +17,7 @@ app.get('/health', async (c) => {
 
 app.route('/machines', machinesRoute);
 app.route('/assemblies', assembliesRoute);
+app.route('/parts', partsRoute);
 app.route('/ingest', ingestRoute);
 
 export default app;

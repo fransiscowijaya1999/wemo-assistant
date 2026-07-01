@@ -36,3 +36,31 @@ export const extractedPage = z.object({
 });
 
 export type ExtractedPage = z.infer<typeof extractedPage>;
+
+// --- Color-index page ---
+// Maps colored parts to color-specific part-number suffixes. See docs/catalog-format.md.
+
+export const extractedColorLegend = z.object({
+  code: z.string().describe('Color code from the column header, e.g. NH-436M.'),
+  name: z.string().describe('Color name, e.g. Mat Gunpowder Black Metallic.'),
+});
+
+export const extractedColorVariant = z.object({
+  colorCode: z.string().describe("The column's color code this suffix belongs to (matches a legend code)."),
+  suffix: z.string().describe('Color suffix code appended to the base part number, e.g. ZE.'),
+});
+
+export const extractedColoredPart = z.object({
+  partName: z.string(),
+  baseNumber: z.string().describe('Base part number ("No. part dasar"), e.g. 83650-K1Z-NA0.'),
+  blockCode: z.string().nullable().optional().describe('Assembly/block code ("No. blok"), e.g. F-13.'),
+  refNo: z.string().nullable().optional().describe('Balloon/ref number ("No. Ref") within that block.'),
+  variants: z.array(extractedColorVariant),
+});
+
+export const extractedColorPage = z.object({
+  colors: z.array(extractedColorLegend),
+  items: z.array(extractedColoredPart),
+});
+
+export type ExtractedColorPage = z.infer<typeof extractedColorPage>;

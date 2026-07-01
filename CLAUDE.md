@@ -109,5 +109,6 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 1: data plane — local D1 + machines/assemblies read+write endpoints (admin-guarded).
 - [x] Slice 2: AI catalog-page extraction — POST /ingest/page (Claude, model-agnostic seam).
 - [x] Slice 3: persist reviewed drafts — POST /ingest/commit (part dedup/merge) + GET /assemblies/:id/full.
-- [ ] Slice 4: admin review UI (Vite+React) to drive extract -> review -> commit.
-- [ ] Later: dot mapping, color/variant ingestion, sync API, clerk mobile, semantic lookup.
+- [x] Slice 4: color/variant ingestion — POST /ingest/color-page + /color-commit; GET /parts?number=… (resolve any number) + /parts/:id.
+- [ ] Slice 5: admin review UI (Vite+React): extract -> review -> commit, + dot mapping.
+- [ ] Later: serial/variant applicability, sync API, clerk mobile, semantic lookup.
