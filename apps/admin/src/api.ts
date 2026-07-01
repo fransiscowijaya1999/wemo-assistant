@@ -1,4 +1,11 @@
-import type { Assembly, EditorDot, ExtractedPage, FullAssembly, Machine } from './types';
+import type {
+  Assembly,
+  CommitSummary,
+  EditorDot,
+  ExtractedPage,
+  FullAssembly,
+  Machine,
+} from './types';
 
 const BASE = '/api';
 
@@ -38,7 +45,7 @@ export const api = {
       body: { imageBase64, mediaType },
     }),
   commitPage: (machineId: string, groupType: string, extracted: ExtractedPage) =>
-    req<{ ok: boolean; summary: Record<string, number> }>('/ingest/commit', {
+    req<{ ok: boolean; summary: CommitSummary }>('/ingest/commit', {
       method: 'POST',
       admin: true,
       body: { machineId, groupType, extracted },

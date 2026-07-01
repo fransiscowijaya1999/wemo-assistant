@@ -20,7 +20,7 @@ function imageMeta(dataUrl: string): Promise<{ w: number; h: number }> {
   });
 }
 
-export function DotEditor({ machineId }: { machineId: string }) {
+export function DotEditor({ machineId, refreshKey }: { machineId: string; refreshKey: number }) {
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
   const [asmId, setAsmId] = useState('');
   const [items, setItems] = useState<FullItem[]>([]);
@@ -38,7 +38,7 @@ export function DotEditor({ machineId }: { machineId: string }) {
     setItems([]);
     setDots([]);
     api.listAssemblies(machineId).then(setAssemblies).catch((e) => setErr(String(e)));
-  }, [machineId]);
+  }, [machineId, refreshKey]);
 
   async function openAssembly(id: string) {
     setAsmId(id);

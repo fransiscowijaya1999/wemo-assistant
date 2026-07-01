@@ -5,17 +5,30 @@ export type ExtractedItem = {
   description: string;
   qty?: number | null;
   partNumbers: ExtractedPartNumber[];
+  dots?: { x: number; y: number }[];
 };
 
 export type ExtractedServiceItem = { refNo?: string | null; name: string; frtHours?: number | null };
 
+export type DiagramBox = { x: number; y: number; width: number; height: number };
+
 export type ExtractedPage = {
   assembly: { code: string; name: string; imageCode?: string | null };
+  diagram?: DiagramBox | null;
   items: ExtractedItem[];
   serviceItems: ExtractedServiceItem[];
 };
 
 export type Machine = { id: string; brand: string; model: string; typeCode?: string | null };
+
+export type CommitSummary = {
+  assemblyId: string;
+  itemsCreated: number;
+  partsCreated: number;
+  partsReused: number;
+  numbersCreated: number;
+  serviceItemsCreated: number;
+};
 
 // --- Dot mapping ---
 

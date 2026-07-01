@@ -17,6 +17,12 @@ export const extractedItem = z.object({
   partNumbers: z
     .array(extractedPartNumber)
     .describe('All part numbers listed for this ref, including alternates/interchangeable ones.'),
+  dots: z
+    .array(z.object({ x: z.number(), y: z.number() }))
+    .optional()
+    .describe(
+      "Approximate positions (normalized 0..1 relative to the FULL page image, top-left origin) of this ref's balloon number(s) on the diagram. One entry per balloon; empty if not locatable.",
+    ),
 });
 
 export const extractedServiceItem = z.object({
@@ -31,6 +37,11 @@ export const extractedPage = z.object({
     name: z.string().describe('Assembly name, e.g. Cylinder Head.'),
     imageCode: z.string().nullable().optional().describe('Internal diagram image code, e.g. KVYIE0300.'),
   }),
+  diagram: z
+    .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
+    .nullable()
+    .optional()
+    .describe('Bounding box (normalized 0..1, top-left origin) of the exploded-diagram region on the page.'),
   items: z.array(extractedItem),
   serviceItems: z.array(extractedServiceItem),
 });

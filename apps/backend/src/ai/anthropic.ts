@@ -16,7 +16,14 @@ Rules:
   parentheses, record it in brand/note.
 - A part number printed under a description usually means supersession — record it with a note.
 - Also extract the Service item / F.R.T. table (name + labor hours) if present.
-- If a field is not present, omit it. Do not guess.`;
+- Return "diagram": the bounding box {x, y, width, height} of the exploded-diagram region, each value
+  normalized 0..1 relative to the full image (x,y = top-left corner). Omit it only if the whole image
+  is the diagram.
+- For each item, return "dots": approximate {x, y} positions (normalized 0..1 to the full image) of
+  that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
+  times). Use an empty array if you cannot locate it. These are best-effort estimates a human will
+  fine-tune.
+- If a field is not present, omit it. Do not guess text you cannot read.`;
 
 const COLOR_SYSTEM = `You extract data from a Honda Indonesia parts-catalog COLOR INDEX page, which
 maps colored parts to color-specific part-number suffixes.
@@ -54,7 +61,7 @@ export function createAnthropicVisionProvider(
               { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
               {
                 type: 'text',
-                text: 'Extract the assembly header, the full parts table, and the service/FRT table from this catalog page.',
+                text: 'Extract the assembly header, the full parts table, the service/FRT table, the diagram bounding box, and each ref\'s balloon coordinates from this catalog page.',
               },
             ],
           },

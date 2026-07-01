@@ -112,4 +112,5 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 4: color/variant ingestion — POST /ingest/color-page + /color-commit; GET /parts?number=… (resolve any number) + /parts/:id.
 - [x] Slice 5: admin web UI (Vite+React, apps/admin) — machine select/create, upload page, extract -> editable review -> commit.
 - [x] Slice 6: dot mapping — R2 image storage + balloon dots (POST/GET image, PUT dots) + admin diagram/dot editor.
-- [ ] Later: serial/variant applicability, color review UI, multi-brand/web-source adapter, sync API, clerk mobile, semantic lookup.
+- [x] Slice 7: AI auto-crop diagram + auto-place balloon dots at ingest (extraction returns diagram bbox + per-ref coords; admin crops client-side, transforms + saves dots).
+- [ ] Later: whole-catalog (PDF) batch ingest, serial/variant applicability, color review UI, multi-brand/web-source adapter, sync API, clerk mobile, semantic lookup.
