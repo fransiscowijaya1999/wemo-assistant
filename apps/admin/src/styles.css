@@ -101,3 +101,66 @@ input.num {
 .ok {
   color: #15803d;
 }
+.hint {
+  color: #666;
+  font-size: 0.85rem;
+}
+.doteditor {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  align-items: flex-start;
+}
+.itemlist {
+  width: 260px;
+  max-height: 520px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.itembtn {
+  text-align: left;
+  background: #f2f4f7;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.itembtn.sel {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+.itembtn .cnt {
+  float: right;
+  color: #2563eb;
+}
+.canvaswrap {
+  flex: 1;
+}
+.canvas {
+  position: relative;
+  display: inline-block;
+  cursor: crosshair;
+  user-select: none;
+}
+.canvas img {
+  max-width: 100%;
+  display: block;
+}
+.marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.7rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1.1rem;
+  text-align: center;
+  border-radius: 50%;
+  padding: 0 0.15rem;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px #fff;
+}

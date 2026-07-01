@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { api, getToken, setToken } from './api';
+import { DotEditor } from './DotEditor';
 import type { ExtractedPage, Machine } from './types';
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -261,6 +262,8 @@ export function App() {
           </button>
         </section>
       )}
+
+      {machineId && <DotEditor machineId={machineId} />}
     </div>
   );
 }

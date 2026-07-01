@@ -1,4 +1,4 @@
-import type { ExtractedPage, Machine } from './types';
+import type { Assembly, EditorDot, ExtractedPage, FullAssembly, Machine } from './types';
 
 const BASE = '/api';
 
@@ -25,6 +25,8 @@ async function req<T>(path: string, opts: ReqOpts = {}): Promise<T> {
   return data as T;
 }
 
+export const imageUrl = (assemblyId: string) => `${BASE}/assemblies/${assemblyId}/image`;
+
 export const api = {
   listMachines: () => req<Machine[]>('/machines'),
   createMachine: (m: { brand: string; model: string }) =>
@@ -40,5 +42,20 @@ export const api = {
       method: 'POST',
       admin: true,
       body: { machineId, groupType, extracted },
+    }),
+  listAssemblies: (machineId: string) =>
+    req<Assembly[]>(`/assemblies?machineId=${encodeURIComponent(machineId)}`),
+  getAssemblyFull: (id: string) => req<FullAssembly>(`/assemblies/${id}/full`),
+  uploadAssemblyImage: (id: string, imageBase64: string, mediaType: string, width: number, height: number) =>
+    req<{ ok: boolean; imageRef: string }>(`/assemblies/${id}/image`, {
+      method: 'POST',
+      admin: true,
+      body: { imageBase64, mediaType, width, height },
+    }),
+  saveDots: (id: string, dots: EditorDot[]) =>
+    req<{ ok: boolean; count: number }>(`/assemblies/${id}/dots`, {
+      method: 'PUT',
+      admin: true,
+      body: { dots },
     }),
 };

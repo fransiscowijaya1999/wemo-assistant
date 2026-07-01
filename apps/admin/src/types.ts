@@ -16,3 +16,27 @@ export type ExtractedPage = {
 };
 
 export type Machine = { id: string; brand: string; model: string; typeCode?: string | null };
+
+// --- Dot mapping ---
+
+export type Assembly = {
+  id: string;
+  code: string;
+  name: string;
+  groupType: string;
+  imageRef?: string | null;
+  width?: number | null;
+  height?: number | null;
+};
+
+export type EditorDot = { assemblyItemId: string; x: number; y: number };
+
+export type FullItem = {
+  id: string;
+  refNo: string;
+  description?: string | null;
+  part: { nameRaw: string } | null;
+  dots: EditorDot[];
+};
+
+export type FullAssembly = { assembly: Assembly; items: FullItem[] };

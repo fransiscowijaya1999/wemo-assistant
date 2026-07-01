@@ -111,5 +111,5 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 3: persist reviewed drafts — POST /ingest/commit (part dedup/merge) + GET /assemblies/:id/full.
 - [x] Slice 4: color/variant ingestion — POST /ingest/color-page + /color-commit; GET /parts?number=… (resolve any number) + /parts/:id.
 - [x] Slice 5: admin web UI (Vite+React, apps/admin) — machine select/create, upload page, extract -> editable review -> commit.
-- [ ] Slice 6: dot mapping (diagram + balloon coordinate editor) in admin UI.
+- [x] Slice 6: dot mapping — R2 image storage + balloon dots (POST/GET image, PUT dots) + admin diagram/dot editor.
 - [ ] Later: serial/variant applicability, color review UI, multi-brand/web-source adapter, sync API, clerk mobile, semantic lookup.
