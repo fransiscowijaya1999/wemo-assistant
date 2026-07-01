@@ -12,8 +12,10 @@
     "db:migrate:remote": "wrangler d1 migrations apply wemo --remote"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.109.0",
     "drizzle-orm": "^0.38.0",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",
