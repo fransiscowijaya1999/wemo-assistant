@@ -103,24 +103,38 @@ Add indexes on `partNumbers.value`, `aliases.term`, `parts.nameNormalized`, `ass
 
 ## 4. Sync flow
 
+The endpoint is **paginated**: one session may span several requests. The client loops on
+`hasMore`, feeding the returned `cursor` back verbatim, until the server signals completion — only
+then does it advance its stored watermark.
+
 ```
-1. cursor = SyncState.cursor  (0 = full sync)
-2. GET {base}/sync?since={cursor}  ->  { since, cursor, tables }
-3. In a single drift transaction, for each table in `tables`:
-     for each row:
+1. token = SyncState.cursor  (0 or "" = full sync)
+2. loop:
+     GET {base}/sync?cursor={token}  ->  { since, cursor, hasMore, limit, tables }
+     In ONE drift transaction, for each table in `tables`, for each row:
        if row.deletedAt != null   -> delete local row by id   (soft-delete propagation)
        else                       -> upsert (insertOnConflictUpdate)
-4. Save new cursor to SyncState.
-5. Image sync: for every assembly in `tables.assemblies` with imageRef != null,
+     token = cursor
+     if hasMore: continue loop        (same session; window is fixed server-side)
+     else: break                      (delta complete)
+3. Save token to SyncState.cursor.   // terminal `cursor` is a bare number = next `since`
+4. Image sync: for every assembly seen in any page's `tables.assemblies` with imageRef != null,
    GET {base}/assemblies/{id}/image  -> write bytes to <appDir>/diagrams/{id}.img
    (only the assemblies present in this delta changed, so only they are refetched).
-6. Show "last synced" + row counts.
+5. Show "last synced" + row counts.
 ```
 
 Notes:
-- Wrap DB writes in one transaction for atomicity.
-- Full resync = set cursor to 0 (offer a "Force full sync" button as a recovery path).
-- Timestamps arrive as ISO strings; `cursor` is a number (ms) — store it verbatim, don't recompute.
+- Wrap each page's DB writes in one transaction. Pages are idempotent (upsert), so a retried page
+  is harmless.
+- **Pagination:** the server pulls a fixed window `since < updated_at <= newSince` per session and
+  walks the tables with keyset paging (`ORDER BY updated_at, id`). While `hasMore` is true, `cursor`
+  is an **opaque token** — pass it back unchanged, don't parse it or treat it as a timestamp. When
+  `hasMore` is false, `cursor` is a **bare ms number** = the next session's low watermark; store
+  that. `limit` (default 1000, max 5000) can be tuned per request but the client must still loop.
+- Full resync = store cursor `0` (offer a "Force full sync" button as a recovery path).
+- Timestamps in rows arrive as ISO strings; the terminal `cursor` is a number (ms) — store it
+  verbatim, don't recompute.
 - Use `dio` or `http`; set a sensible timeout; sync is the only network dependency for browsing.
 
 ---
@@ -196,8 +210,11 @@ convention.)
 
 ## 10. Backend contract (what the app depends on)
 
-- `GET /sync?since=<ms>` → `{ since, cursor, tables: { <name>: Row[] } }`. Rows include `updatedAt`
-  (ISO) and `deletedAt` (ISO|null). `cursor` (ms) is the next `since`.
+- `GET /sync?since=<ms>&cursor=<token>&limit=<n>` → `{ since, cursor, hasMore, limit, tables: {
+  <name>: Row[] } }`. Rows include `updatedAt` (ISO) and `deletedAt` (ISO|null). Paginated: loop
+  while `hasMore`, passing `cursor` back verbatim (opaque mid-session); the terminal `cursor` is a
+  bare ms number = the next `since`. `limit` defaults to 1000 (max 5000). `since` alone (no
+  `cursor`) still works for a one-shot/first request.
 - `GET /assemblies/:id/image` → image bytes (content-type set). Only assemblies with `imageRef`.
 - Read-only; no auth yet. Base URL is a client setting.
 - Table row shapes = `docs/schema.md`. `users` is **not** synced.

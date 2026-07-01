@@ -33,7 +33,7 @@ export const machines = sqliteTable('machines', {
   catalogDate: text('catalog_date'),
   notes: text('notes'),
   ...timestamps(),
-});
+}, (t) => [index('machines_updated_idx').on(t.updatedAt, t.id)]);
 
 export const machineVariants = sqliteTable('machine_variants', {
   id: pk(),
@@ -41,7 +41,10 @@ export const machineVariants = sqliteTable('machine_variants', {
   name: text('name').notNull(), // STD | ABS | CBS ...
   note: text('note'),
   ...timestamps(),
-}, (t) => [index('machine_variants_machine_idx').on(t.machineId)]);
+}, (t) => [
+  index('machine_variants_machine_idx').on(t.machineId),
+  index('machine_variants_updated_idx').on(t.updatedAt, t.id),
+]);
 
 export const colors = sqliteTable('colors', {
   id: pk(),
@@ -49,7 +52,10 @@ export const colors = sqliteTable('colors', {
   code: text('code').notNull(), // NH-436M
   name: text('name').notNull(), // Mat Gunpowder Black Metallic
   ...timestamps(),
-}, (t) => [index('colors_machine_idx').on(t.machineId)]);
+}, (t) => [
+  index('colors_machine_idx').on(t.machineId),
+  index('colors_updated_idx').on(t.updatedAt, t.id),
+]);
 
 // ---------------------------------------------------------------------------
 // Assemblies (exploded-diagram pages) and positions
@@ -68,7 +74,10 @@ export const assemblies = sqliteTable('assemblies', {
   pageNo: integer('page_no'),
   sortOrder: integer('sort_order'),
   ...timestamps(),
-}, (t) => [index('assemblies_machine_code_idx').on(t.machineId, t.code)]);
+}, (t) => [
+  index('assemblies_machine_code_idx').on(t.machineId, t.code),
+  index('assemblies_updated_idx').on(t.updatedAt, t.id),
+]);
 
 /** A position on a diagram: "balloon `ref_no` on this assembly". */
 export const assemblyItems = sqliteTable('assembly_items', {
@@ -78,7 +87,10 @@ export const assemblyItems = sqliteTable('assembly_items', {
   basePartId: text('base_part_id').references(() => parts.id),
   note: text('note'),
   ...timestamps(),
-}, (t) => [index('assembly_items_assembly_idx').on(t.assemblyId)]);
+}, (t) => [
+  index('assembly_items_assembly_idx').on(t.assemblyId),
+  index('assembly_items_updated_idx').on(t.updatedAt, t.id),
+]);
 
 /** Which part number a position resolves to, filtered by variant + serial range. */
 export const itemResolutions = sqliteTable('item_resolutions', {
@@ -90,7 +102,10 @@ export const itemResolutions = sqliteTable('item_resolutions', {
   serialFrom: text('serial_from'),
   serialTo: text('serial_to'),
   ...timestamps(),
-}, (t) => [index('item_resolutions_item_idx').on(t.assemblyItemId)]);
+}, (t) => [
+  index('item_resolutions_item_idx').on(t.assemblyItemId),
+  index('item_resolutions_updated_idx').on(t.updatedAt, t.id),
+]);
 
 /** Balloon coordinates (normalized 0..1). A position can have several. */
 export const dots = sqliteTable('dots', {
@@ -99,7 +114,10 @@ export const dots = sqliteTable('dots', {
   x: real('x').notNull(),
   y: real('y').notNull(),
   ...timestamps(),
-}, (t) => [index('dots_item_idx').on(t.assemblyItemId)]);
+}, (t) => [
+  index('dots_item_idx').on(t.assemblyItemId),
+  index('dots_updated_idx').on(t.updatedAt, t.id),
+]);
 
 /** Cross-reference drawn on a diagram pointing at a neighboring assembly. */
 export const assemblyLinks = sqliteTable('assembly_links', {
@@ -111,7 +129,10 @@ export const assemblyLinks = sqliteTable('assembly_links', {
   y: real('y'),
   label: text('label'),
   ...timestamps(),
-}, (t) => [index('assembly_links_from_idx').on(t.fromAssemblyId)]);
+}, (t) => [
+  index('assembly_links_from_idx').on(t.fromAssemblyId),
+  index('assembly_links_updated_idx').on(t.updatedAt, t.id),
+]);
 
 // ---------------------------------------------------------------------------
 // Parts (canonical) + numbers + variants
@@ -125,7 +146,10 @@ export const parts = sqliteTable('parts', {
   specs: text('specs', { mode: 'json' }).$type<Record<string, unknown>>(),
   notes: text('notes'),
   ...timestamps(),
-}, (t) => [index('parts_name_normalized_idx').on(t.nameNormalized)]);
+}, (t) => [
+  index('parts_name_normalized_idx').on(t.nameNormalized),
+  index('parts_updated_idx').on(t.updatedAt, t.id),
+]);
 
 export const partNumbers = sqliteTable('part_numbers', {
   id: pk(),
@@ -141,6 +165,7 @@ export const partNumbers = sqliteTable('part_numbers', {
 }, (t) => [
   index('part_numbers_value_idx').on(t.value),
   index('part_numbers_part_idx').on(t.partId),
+  index('part_numbers_updated_idx').on(t.updatedAt, t.id),
 ]);
 
 /** Per-color specialization of a part number (base + color suffix). */
@@ -151,7 +176,10 @@ export const partColorVariants = sqliteTable('part_color_variants', {
   suffixCode: text('suffix_code'), // ZE
   fullNumber: text('full_number'), // base + suffix
   ...timestamps(),
-}, (t) => [index('part_color_variants_part_idx').on(t.partId)]);
+}, (t) => [
+  index('part_color_variants_part_idx').on(t.partId),
+  index('part_color_variants_updated_idx').on(t.updatedAt, t.id),
+]);
 
 /** Search synonyms and local/colloquial names. */
 export const aliases = sqliteTable('aliases', {
@@ -160,7 +188,10 @@ export const aliases = sqliteTable('aliases', {
   term: text('term').notNull(),
   lang: text('lang'), // id | en
   ...timestamps(),
-}, (t) => [index('aliases_term_idx').on(t.term)]);
+}, (t) => [
+  index('aliases_term_idx').on(t.term),
+  index('aliases_updated_idx').on(t.updatedAt, t.id),
+]);
 
 // ---------------------------------------------------------------------------
 // Workshop labor (FRT) + users
@@ -174,7 +205,10 @@ export const serviceItems = sqliteTable('service_items', {
   frtHours: real('frt_hours'),
   note: text('note'),
   ...timestamps(),
-}, (t) => [index('service_items_assembly_idx').on(t.assemblyId)]);
+}, (t) => [
+  index('service_items_assembly_idx').on(t.assemblyId),
+  index('service_items_updated_idx').on(t.updatedAt, t.id),
+]);
 
 export const users = sqliteTable('users', {
   id: pk(),

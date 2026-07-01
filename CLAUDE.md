@@ -116,4 +116,5 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 8: whole-catalog batch ingest — admin renders the PDF (pdf.js), per-page type select, concurrency-limited extract, bulk commit (group inferred from code, dedup/merge, auto-crop + dots).
 - [x] Slice 9: admin UI cleanup — Mantine + tabs (Ingest/Batch/Dot mapping/Browse/Settings); Browse view (assemblies + lookup part by any number).
 - [x] Slice 10: delta sync API — GET /sync?since=<ms> returns changed rows (incl. soft-deletes) + cursor, for the offline clerk replica.
-- [ ] Later: clerk mobile (Flutter, main PC), serial/variant applicability, color-review UI, semantic lookup, multi-brand/web-source adapter, sync pagination + updatedAt indexes, bundle code-split.
+- [x] Slice 11: sync hardening — `updated_at` indexes on all syncable tables + keyset pagination (`?cursor=&limit=`, bounded window, `hasMore`) so a whole-catalog replica pulls in bounded pages.
+- [ ] Later: clerk mobile (Flutter, main PC), serial/variant applicability, color-review UI, semantic lookup, multi-brand/web-source adapter, sync pagination cursors on the mobile client, bundle code-split.
