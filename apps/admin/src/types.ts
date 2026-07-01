@@ -50,7 +50,7 @@ export type ColorCommitSummary = {
   variantsSkipped: number;
 };
 
-// --- Dot mapping ---
+// --- Dot mapping / browse ---
 
 export type Assembly = {
   id: string;
@@ -73,3 +73,13 @@ export type FullItem = {
 };
 
 export type FullAssembly = { assembly: Assembly; items: FullItem[] };
+
+export type PartFull = {
+  id: string;
+  nameRaw: string;
+  nameNormalized?: string | null;
+  category?: string | null;
+  notes?: string | null;
+  numbers: { value: string; kind: string; brand?: string | null; note?: string | null; isPrimary: boolean }[];
+  colorVariants: { id: string; colorId: string; suffixCode?: string | null; fullNumber?: string | null }[];
+};

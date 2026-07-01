@@ -7,6 +7,7 @@ import type {
   ExtractedPage,
   FullAssembly,
   Machine,
+  PartFull,
 } from './types';
 
 const BASE = '/api';
@@ -79,4 +80,5 @@ export const api = {
       admin: true,
       body: { dots },
     }),
+  lookupPart: (number: string) => req<PartFull>(`/parts?number=${encodeURIComponent(number)}`),
 };
