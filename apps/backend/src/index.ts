@@ -1,9 +1,7 @@
 import { Hono } from 'hono';
-
-export type Bindings = {
-  DB: D1Database;
-  IMAGES: R2Bucket;
-};
+import type { Bindings } from './bindings';
+import { machinesRoute } from './routes/machines';
+import { assembliesRoute } from './routes/assemblies';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -15,4 +13,8 @@ app.get('/health', async (c) => {
   return c.json({ ok: row?.ok === 1 });
 });
 
+app.route('/machines', machinesRoute);
+app.route('/assemblies', assembliesRoute);
+
 export default app;
+export type { Bindings };

@@ -21,6 +21,12 @@ vague cases. The source data is Honda Indonesia parts catalogs (see `docs/catalo
 - **Clerk:** **read-only** lookup via the app. Cannot modify data. Uses the **Android** app.
 - Separate phones; **unreliable internet** at the shop → offline-first on the clerk side.
 
+**Authorization invariant (load-bearing):** the clerk app has **no mutation paths at all** — not via
+the UI and not via AI. Any AI feature on the clerk side may only **read/fetch** (look up, summarize,
+explain); it must never create/update/delete. All writes are **admin-only**, authenticated, and go
+through the backend. The clerk's local drift DB is a read replica that never writes back to the
+master. Enforced in the backend by `requireAdmin` on every mutation route.
+
 ## Architecture
 
 ```
@@ -100,5 +106,6 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 ## Status
 
 - [x] Slice 0: repo + docs + backend scaffold (Hono/D1/Drizzle schema).
-- [ ] Slice 1: catalog ingestion (page -> structured rows) + admin review UI.
+- [~] Slice 1: data plane — local D1 + machines/assemblies read+write endpoints (admin-guarded) + seed.
+- [ ] Slice 2: AI catalog ingestion (page -> structured rows) + admin review UI.
 - [ ] Later: sync API, clerk mobile, semantic lookup.
