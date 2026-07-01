@@ -1,7 +1,9 @@
 import type {
   Assembly,
+  ColorCommitSummary,
   CommitSummary,
   EditorDot,
+  ExtractedColorPage,
   ExtractedPage,
   FullAssembly,
   Machine,
@@ -49,6 +51,18 @@ export const api = {
       method: 'POST',
       admin: true,
       body: { machineId, groupType, extracted },
+    }),
+  ingestColorPage: (imageBase64: string, mediaType: string) =>
+    req<{ extracted: ExtractedColorPage }>('/ingest/color-page', {
+      method: 'POST',
+      admin: true,
+      body: { imageBase64, mediaType },
+    }),
+  colorCommit: (machineId: string, extracted: ExtractedColorPage) =>
+    req<{ ok: boolean; summary: ColorCommitSummary }>('/ingest/color-commit', {
+      method: 'POST',
+      admin: true,
+      body: { machineId, extracted },
     }),
   listAssemblies: (machineId: string) =>
     req<Assembly[]>(`/assemblies?machineId=${encodeURIComponent(machineId)}`),

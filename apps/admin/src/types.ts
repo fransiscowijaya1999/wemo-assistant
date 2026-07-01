@@ -19,6 +19,17 @@ export type ExtractedPage = {
   serviceItems: ExtractedServiceItem[];
 };
 
+export type ExtractedColorPage = {
+  colors: { code: string; name: string }[];
+  items: {
+    partName: string;
+    baseNumber: string;
+    blockCode?: string | null;
+    refNo?: string | null;
+    variants: { colorCode: string; suffix: string }[];
+  }[];
+};
+
 export type Machine = { id: string; brand: string; model: string; typeCode?: string | null };
 
 export type CommitSummary = {
@@ -28,6 +39,15 @@ export type CommitSummary = {
   partsReused: number;
   numbersCreated: number;
   serviceItemsCreated: number;
+};
+
+export type ColorCommitSummary = {
+  colorsCreated: number;
+  colorsReused: number;
+  partsCreated: number;
+  partsReused: number;
+  variantsCreated: number;
+  variantsSkipped: number;
 };
 
 // --- Dot mapping ---

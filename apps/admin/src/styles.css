@@ -164,3 +164,51 @@ input.num {
   cursor: pointer;
   box-shadow: 0 0 0 2px #fff;
 }
+.pagegrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.pagecell {
+  width: 150px;
+  border: 1px solid #e2e5ea;
+  border-radius: 6px;
+  padding: 0.25rem;
+  background: #fff;
+}
+.pagecell img {
+  width: 100%;
+  height: 110px;
+  object-fit: contain;
+  background: #fafafa;
+  border: 1px solid #eef0f3;
+}
+.pagecell.extracted {
+  border-color: #2563eb;
+}
+.pagecell.committed {
+  border-color: #15803d;
+}
+.pagecell.error {
+  border-color: #b91c1c;
+}
+.pagemeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+.pagemeta select {
+  padding: 0.15rem;
+  font-size: 0.75rem;
+}
+.pagestatus {
+  font-size: 0.7rem;
+  color: #555;
+  margin-top: 0.2rem;
+  word-break: break-word;
+  max-height: 3.4em;
+  overflow: hidden;
+}

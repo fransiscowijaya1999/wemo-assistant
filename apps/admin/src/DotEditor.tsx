@@ -1,24 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { api, imageUrl } from './api';
+import { b64of, fileToDataUrl, imageMeta } from './ingest-helpers';
 import type { Assembly, EditorDot, FullItem } from './types';
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result as string);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-function imageMeta(dataUrl: string): Promise<{ w: number; h: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
-}
 
 export function DotEditor({ machineId, refreshKey }: { machineId: string; refreshKey: number }) {
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
@@ -81,8 +64,7 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
     setMsg('');
     try {
       const dataUrl = await fileToDataUrl(file);
-      const [meta, b64] = dataUrl.split(',');
-      const mediaType = meta.substring(5, meta.indexOf(';'));
+      const { b64, mediaType } = b64of(dataUrl);
       const { w, h } = await imageMeta(dataUrl);
       await api.uploadAssemblyImage(asmId, b64, mediaType, w, h);
       setHasImage(true);
