@@ -65,7 +65,7 @@ to approve. Never auto-merge — human verifies.
 
 ```
 apps/backend/     Hono + D1 + Drizzle (this PC)
-apps/admin/       Vite + React admin (planned, this PC)
+apps/admin/       Vite + React admin — extract/review/commit UI (this PC)
 apps/mobile/      Flutter clerk app (planned, main PC)
 docs/             catalog-format.md, schema.md
 ```
@@ -110,5 +110,6 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 2: AI catalog-page extraction — POST /ingest/page (Claude, model-agnostic seam).
 - [x] Slice 3: persist reviewed drafts — POST /ingest/commit (part dedup/merge) + GET /assemblies/:id/full.
 - [x] Slice 4: color/variant ingestion — POST /ingest/color-page + /color-commit; GET /parts?number=… (resolve any number) + /parts/:id.
-- [ ] Slice 5: admin review UI (Vite+React): extract -> review -> commit, + dot mapping.
-- [ ] Later: serial/variant applicability, sync API, clerk mobile, semantic lookup.
+- [x] Slice 5: admin web UI (Vite+React, apps/admin) — machine select/create, upload page, extract -> editable review -> commit.
+- [ ] Slice 6: dot mapping (diagram + balloon coordinate editor) in admin UI.
+- [ ] Later: serial/variant applicability, color review UI, multi-brand/web-source adapter, sync API, clerk mobile, semantic lookup.

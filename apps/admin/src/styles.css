@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+body {
+  margin: 0;
+  background: #f6f7f9;
+  color: #1a1a1a;
+}
+.app {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+h1 {
+  font-size: 1.4rem;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  margin: 1rem 0;
+}
+.card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+  color: #444;
+}
+label {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-right: 1rem;
+}
+.row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+input,
+select,
+button {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #cfd4dc;
+  border-radius: 6px;
+  background: #fff;
+}
+button {
+  cursor: pointer;
+  background: #eef1f5;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  margin-top: 0.75rem;
+}
+.preview img {
+  max-width: 100%;
+  margin-top: 0.75rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 8px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+th,
+td {
+  border-bottom: 1px solid #eef0f3;
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  vertical-align: top;
+}
+input.w3 {
+  width: 3.5rem;
+}
+input.wide {
+  width: 100%;
+}
+input.num {
+  width: 11rem;
+  margin: 0 0.25rem 0.25rem 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.busy {
+  color: #2563eb;
+}
+.err {
+  color: #b91c1c;
+}
+.ok {
+  color: #15803d;
+}

@@ -1,0 +1,44 @@
+import type { ExtractedPage, Machine } from './types';
+
+const BASE = '/api';
+
+export function getToken(): string {
+  return localStorage.getItem('adminToken') ?? '';
+}
+export function setToken(t: string): void {
+  localStorage.setItem('adminToken', t);
+}
+
+type ReqOpts = { method?: string; admin?: boolean; body?: unknown };
+
+async function req<T>(path: string, opts: ReqOpts = {}): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (opts.admin) headers['Authorization'] = `Bearer ${getToken()}`;
+  const res = await fetch(BASE + path, {
+    method: opts.method ?? 'GET',
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error ?? res.statusText);
+  return data as T;
+}
+
+export const api = {
+  listMachines: () => req<Machine[]>('/machines'),
+  createMachine: (m: { brand: string; model: string }) =>
+    req<Machine>('/machines', { method: 'POST', admin: true, body: m }),
+  ingestPage: (imageBase64: string, mediaType: string) =>
+    req<{ extracted: ExtractedPage }>('/ingest/page', {
+      method: 'POST',
+      admin: true,
+      body: { imageBase64, mediaType },
+    }),
+  commitPage: (machineId: string, groupType: string, extracted: ExtractedPage) =>
+    req<{ ok: boolean; summary: Record<string, number> }>('/ingest/commit', {
+      method: 'POST',
+      admin: true,
+      body: { machineId, groupType, extracted },
+    }),
+};

@@ -103,3 +103,24 @@ targets the 2024 superset; 2008 data maps in as the trivial case (one color, one
   `TST 08 PC 002`, dated 2008-05-06.
 - PCX160 (2024): color index `PCX160 (WW160As) TIPE ABS`; `KELOMPOK MESIN` index grid; "Pipa vinyl"
   standard-parts tables. Dated 2024-10-20. Type code `WW160As`, variants `STD`/`ABS`.
+
+## Other brands (Suzuki eparts) — web source
+
+Verified the model generalizes beyond Honda using Suzuki Indonesia eparts (e.g. APV `FIG.100 REAR
+AXLE`, variants GC415T/GC415V). Same core structure — exploded diagram + numbered balloons + a
+`No | part number | description | qty` table — so the schema fits directly.
+
+Differences from the Honda PDFs:
+- **Web-based, not PDF.** The diagram is a standalone image (clean `.webp` line-art, balloons only, no
+  embedded table); the parts table is separate structured HTML (served by a backend).
+- **Includes price** ("Price Per Pcs") + Remarks columns — Honda's don't. (Not yet modeled.)
+- **More groups** than engine/frame (suspension, chassis, …) → `assemblies.groupType` should become a
+  free-text category, not a 2-value enum.
+
+Two ways to ingest a web catalog:
+1. **Screenshot / print-to-PDF the whole page** so the capture contains diagram + rendered table, then
+   run it through the normal vision pipeline (`/ingest/page`). Pragmatic for occasional pages; capture
+   the full table at legible resolution.
+2. **Web-source adapter** (future): parse the HTML/JSON table for rows directly (no OCR — cheaper and
+   more reliable) and use the diagram image only for dot mapping. Slots behind the same commit/merge
+   layer as a new source adapter.
