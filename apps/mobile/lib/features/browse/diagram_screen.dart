@@ -10,9 +10,13 @@ import 'diagram_view.dart';
 import 'models.dart';
 
 class DiagramScreen extends StatefulWidget {
-  const DiagramScreen({super.key, required this.assemblyId});
+  const DiagramScreen({super.key, required this.assemblyId, this.highlightItemId});
 
   final String assemblyId;
+
+  /// When set (e.g. arriving from part detail), the matching position's dots
+  /// start highlighted and its part card is shown.
+  final String? highlightItemId;
 
   @override
   State<DiagramScreen> createState() => _DiagramScreenState();
@@ -35,6 +39,17 @@ class _DiagramScreenState extends State<DiagramScreen> {
     super.initState();
     // Capture providers before the async gaps.
     _future = _load(context.read<CatalogRepository>(), context.read<ImageStore>());
+    if (widget.highlightItemId != null) {
+      _future.then((data) {
+        if (!mounted || data == null) return;
+        for (final dot in data.dots) {
+          if (dot.itemId == widget.highlightItemId) {
+            setState(() => _selected = dot);
+            break;
+          }
+        }
+      });
+    }
   }
 
   Future<_DiagramData?> _load(CatalogRepository repo, ImageStore store) async {

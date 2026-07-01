@@ -209,7 +209,13 @@ convention.)
   Browse tab lists assemblies → `DiagramScreen` renders the cached image with normalized dots
   overlaid in an `InteractiveViewer` (pinch-zoom); tapping a dot shows the position's part (refNo,
   name, primary number). Verified on the emulator.
-- **M3 — Lookup:** search box (number/name/alias) → part detail (numbers, interchange, color variants).
+- **M3 — Lookup:** ✅ done. `LookupRepository` resolves any part number / name / alias to the
+  canonical part offline; `SearchScreen` (debounced) → `PartDetailScreen` shows all numbers
+  (kind/brand, primary), color variants (full numbers), aliases, and the diagram positions the part
+  appears in — tapping one jumps to `DiagramScreen` with that dot highlighted (reverse of M2). The
+  shell is now Browse / Search / Assistant / Sync (Search is the default tab). Verified on the
+  emulator. (The **Assistant** tab is a placeholder — the read-only, online-only AI chat is the next
+  slice; it needs a new clerk-facing backend chat endpoint.)
 - **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
 - **M5 — Polish + online AI fuzzy lookup:** offline indicator, force-full-sync, then the online
   AI-assisted "describe the vague part" flow (needs a clerk-facing AI endpoint — future backend work).
