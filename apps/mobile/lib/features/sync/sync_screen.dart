@@ -129,8 +129,8 @@ class _StatusBanner extends StatelessWidget {
       SyncStatus.success => (
         Icons.check_circle_outline,
         Colors.green.shade700,
-        'Synced ${controller.rowsPulled} row(s) across ${controller.pagesPulled} page(s). '
-            'Last synced ${_ago(controller.lastSyncedAt!)}.',
+        'Synced ${controller.rowsPulled} row(s), ${controller.imagesFetched} image(s) '
+            'across ${controller.pagesPulled} page(s). Last synced ${_ago(controller.lastSyncedAt!)}.',
       ),
       SyncStatus.error => (Icons.error_outline, scheme.error, controller.errorMessage ?? 'Sync failed'),
     };

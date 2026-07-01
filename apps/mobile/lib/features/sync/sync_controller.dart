@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/db/app_database.dart';
+import '../../core/images/image_store.dart';
 import '../../core/settings/app_settings.dart';
+import 'data/image_sync.dart';
 import 'data/sync_api.dart';
 import 'data/sync_repository.dart';
 
@@ -11,20 +13,24 @@ enum SyncStatus { idle, syncing, success, error }
 ///
 /// The read-only replica pulls pages until `hasMore` is false, persisting the
 /// cursor after each page (partial progress survives a crash; pages are
-/// idempotent). Nothing here ever writes back to the backend.
+/// idempotent). After the rows apply, diagram images for the assemblies that
+/// changed are fetched into the on-disk cache. Nothing here writes back.
 class SyncController extends ChangeNotifier {
-  SyncController({required this.db, required this.settings}) : _repo = SyncRepository(db) {
+  SyncController({required this.db, required this.settings, required this.imageStore})
+    : _repo = SyncRepository(db) {
     _load();
   }
 
   final AppDatabase db;
   final AppSettings settings;
+  final ImageStore imageStore;
   final SyncRepository _repo;
 
   SyncStatus status = SyncStatus.idle;
   String? errorMessage;
   int pagesPulled = 0;
   int rowsPulled = 0;
+  int imagesFetched = 0;
   DateTime? lastSyncedAt;
   Map<String, int> tableCounts = const {};
 
@@ -45,9 +51,12 @@ class SyncController extends ChangeNotifier {
     errorMessage = null;
     pagesPulled = 0;
     rowsPulled = 0;
+    imagesFetched = 0;
     notifyListeners();
 
     final api = SyncApi(baseUrl: settings.baseUrl);
+    // Last-seen image state per assembly across the session (id -> delta).
+    final imageDeltas = <String, AssemblyImageDelta>{};
     try {
       var cursor = await _repo.currentCursor();
       while (true) {
@@ -56,12 +65,25 @@ class SyncController extends ChangeNotifier {
         cursor = page.cursor;
         await _repo.saveCursor(cursor);
 
+        for (final row in page.tables['assemblies'] ?? const []) {
+          imageDeltas[row['id'] as String] = AssemblyImageDelta(
+            id: row['id'] as String,
+            hasImage: row['imageRef'] != null,
+            deleted: row['deletedAt'] != null,
+          );
+        }
+
         pagesPulled++;
         rowsPulled += page.tables.values.fold<int>(0, (sum, rows) => sum + rows.length);
         notifyListeners();
 
         if (!page.hasMore) break;
       }
+
+      // Images are best-effort: the catalog data is already synced.
+      final imageResult = await ImageSyncService(api: api, store: imageStore).sync(imageDeltas.values);
+      imagesFetched = imageResult.fetched;
+
       await _repo.markSynced(DateTime.now());
       lastSyncedAt = await _repo.lastSyncedAt();
       tableCounts = await db.tableCounts();

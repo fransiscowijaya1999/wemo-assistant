@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -76,6 +77,22 @@ class SyncApi {
       hasMore: body['hasMore'] as bool? ?? false,
       tables: tables,
     );
+  }
+
+  /// Fetch an assembly's diagram image bytes. Returns null on 404 (no image).
+  Future<Uint8List?> fetchImage(String assemblyId) async {
+    final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final uri = Uri.parse('$base/assemblies/$assemblyId/image');
+
+    final http.Response res;
+    try {
+      res = await _client.get(uri).timeout(timeout);
+    } catch (e) {
+      throw SyncApiException('cannot reach $base ($e)');
+    }
+    if (res.statusCode == 404) return null;
+    if (res.statusCode != 200) throw SyncApiException('HTTP ${res.statusCode} from $uri');
+    return res.bodyBytes;
   }
 
   void dispose() {

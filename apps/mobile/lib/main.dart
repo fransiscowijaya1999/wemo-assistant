@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/db/app_database.dart';
+import 'core/images/image_store.dart';
 import 'core/settings/app_settings.dart';
 
 Future<void> main() async {
@@ -10,5 +11,6 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final settings = AppSettings(prefs);
   final db = AppDatabase();
-  runApp(WemoClerkApp(db: db, settings: settings));
+  final imageStore = ImageStore();
+  runApp(WemoClerkApp(db: db, settings: settings, imageStore: imageStore));
 }

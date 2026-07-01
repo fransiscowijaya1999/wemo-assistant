@@ -203,7 +203,12 @@ convention.)
   cursor persisted per page); debug/sync screen shows base-URL setting, Sync now / Force full sync,
   and per-table row counts. Verified on the Android emulator (`emulator-5554`) against `wrangler
   dev` via an `integration_test`. Cleartext HTTP allowed only for local dev hosts.
-- **M2 — Image sync + cache:** fetch/cache diagram images for changed assemblies; show one diagram.
+- **M2 — Image sync + cache:** ✅ done. `ImageStore` caches one file per assembly at
+  `<docs>/diagrams/<id>.img`; `SyncApi.fetchImage` + `ImageSyncService` fetch/remove images for the
+  assemblies that changed in each delta (best-effort — image failures never fail the row sync). A
+  Browse tab lists assemblies → `DiagramScreen` renders the cached image with normalized dots
+  overlaid in an `InteractiveViewer` (pinch-zoom); tapping a dot shows the position's part (refNo,
+  name, primary number). Verified on the emulator.
 - **M3 — Lookup:** search box (number/name/alias) → part detail (numbers, interchange, color variants).
 - **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
 - **M5 — Polish + online AI fuzzy lookup:** offline indicator, force-full-sync, then the online
