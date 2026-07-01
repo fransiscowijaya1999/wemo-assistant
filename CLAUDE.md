@@ -66,7 +66,7 @@ to approve. Never auto-merge — human verifies.
 ```
 apps/backend/     Hono + D1 + Drizzle (this PC)
 apps/admin/       Vite + React admin — extract/review/commit UI (this PC)
-apps/mobile/      Flutter clerk app (planned, main PC)
+apps/mobile/      Flutter clerk app (wemo_clerk) — offline drift replica + sync (main PC)
 docs/             catalog-format.md, schema.md, mobile-plan.md
 ```
 
@@ -117,4 +117,5 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 9: admin UI cleanup — Mantine + tabs (Ingest/Batch/Dot mapping/Browse/Settings); Browse view (assemblies + lookup part by any number).
 - [x] Slice 10: delta sync API — GET /sync?since=<ms> returns changed rows (incl. soft-deletes) + cursor, for the offline clerk replica.
 - [x] Slice 11: sync hardening — `updated_at` indexes on all syncable tables + keyset pagination (`?cursor=&limit=`, bounded window, `hasMore`) so a whole-catalog replica pulls in bounded pages.
-- [ ] Later: clerk mobile (Flutter, main PC), serial/variant applicability, color-review UI, semantic lookup, multi-brand/web-source adapter, sync pagination cursors on the mobile client, bundle code-split.
+- [x] Mobile M1: clerk app scaffold (`apps/mobile`, fresh Flutter+drift, Partie as reference only) — replica of all 13 sync tables + local `SyncState`, paginated sync client (upsert/delete/cursor), debug/sync screen with per-table counts. Verified on the Android emulator against the backend.
+- [ ] Later: mobile M2–M5 (image sync + cache, lookup, visual browse w/ dots, online AI fuzzy lookup), serial/variant applicability, color-review UI, semantic lookup, multi-brand/web-source adapter, bundle code-split.

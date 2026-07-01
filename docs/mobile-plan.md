@@ -197,9 +197,12 @@ convention.)
 
 ## 9. Suggested build order (mobile slices)
 
-- **M1 — Replica + sync:** drift schema mirroring the sync tables + `SyncState`; sync client (pull,
-  upsert/delete, store cursor); a debug screen showing per-table row counts. Verify against the
-  deployed (or LAN) backend.
+- **M1 — Replica + sync:** ✅ done. Fresh Flutter app at `apps/mobile` (`wemo_clerk`, feature-first
+  `core/` + `features/sync/`). Drift schema mirrors all 13 sync tables + local `SyncState`; sync
+  client walks the paginated `cursor`/`hasMore` loop (typed upserts + soft-delete propagation,
+  cursor persisted per page); debug/sync screen shows base-URL setting, Sync now / Force full sync,
+  and per-table row counts. Verified on the Android emulator (`emulator-5554`) against `wrangler
+  dev` via an `integration_test`. Cleartext HTTP allowed only for local dev hosts.
 - **M2 — Image sync + cache:** fetch/cache diagram images for changed assemblies; show one diagram.
 - **M3 — Lookup:** search box (number/name/alias) → part detail (numbers, interchange, color variants).
 - **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
