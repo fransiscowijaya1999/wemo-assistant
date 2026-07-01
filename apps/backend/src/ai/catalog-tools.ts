@@ -17,11 +17,9 @@ import type { ChatToolDef, Citation, ToolExecutor } from './chat';
 
 const SEARCH_LIMIT = 25;
 
-async function searchParts(db: Db, query: string) {
-  const q = query.trim();
-  if (!q) return [];
-  const pattern = `%${q}%`;
-
+/** Part ids matching a single term (substring, case-insensitive) in any field. */
+async function idsMatchingTerm(db: Db, term: string): Promise<Set<string>> {
+  const pattern = `%${term}%`;
   const [byNumber, byName, byAlias] = await Promise.all([
     db
       .select({ partId: partNumbers.partId })
@@ -36,15 +34,35 @@ async function searchParts(db: Db, query: string) {
       .from(aliases)
       .where(and(like(aliases.term, pattern), isNull(aliases.deletedAt))),
   ]);
+  return new Set([...byNumber, ...byName, ...byAlias].map((r) => r.partId));
+}
 
-  const ids = [...new Set([...byNumber, ...byName, ...byAlias].map((r) => r.partId))].slice(0, SEARCH_LIMIT);
-  if (!ids.length) return [];
+async function searchParts(db: Db, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+
+  // Token search: rank parts by how many query words match ANY field, so extra
+  // words the model tacks on (e.g. the motorcycle model) don't break the match.
+  const tokens = [...new Set(q.toLowerCase().split(/\s+/).filter((t) => t.length >= 2))].slice(0, 8);
+  const terms = tokens.length ? tokens : [q];
+
+  const score = new Map<string, number>();
+  for (const term of terms) {
+    for (const id of await idsMatchingTerm(db, term)) {
+      score.set(id, (score.get(id) ?? 0) + 1);
+    }
+  }
+  if (!score.size) return [];
+
+  // Highest token-match count first; then load names + a representative number.
+  const ids = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, SEARCH_LIMIT).map((e) => e[0]);
 
   const [partRows, numberRows] = await Promise.all([
     db.select().from(parts).where(inArray(parts.id, ids)),
     db.select().from(partNumbers).where(and(inArray(partNumbers.partId, ids), isNull(partNumbers.deletedAt))),
   ]);
 
+  const partById = new Map(partRows.map((p) => [p.id, p]));
   const primary = new Map<string, string>();
   const any = new Map<string, string>();
   for (const n of numberRows) {
@@ -52,11 +70,15 @@ async function searchParts(db: Db, query: string) {
     if (n.isPrimary && !primary.has(n.partId)) primary.set(n.partId, n.value);
   }
 
-  return partRows.map((p) => ({
-    partId: p.id,
-    name: p.nameNormalized ?? p.nameRaw,
-    primaryNumber: primary.get(p.id) ?? any.get(p.id) ?? null,
-  }));
+  // Preserve the ranked order from `ids`.
+  return ids
+    .map((id) => partById.get(id))
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .map((p) => ({
+      partId: p.id,
+      name: p.nameNormalized ?? p.nameRaw,
+      primaryNumber: primary.get(p.id) ?? any.get(p.id) ?? null,
+    }));
 }
 
 async function getPart(db: Db, args: { partId?: string; number?: string }) {
@@ -130,11 +152,14 @@ export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
   {
     name: 'search_parts',
     description:
-      'Search the parts catalog by part number (OEM / alternate / superseded / aftermarket), part name, or a local/colloquial term (Indonesian or English). Returns candidate canonical parts with a primary number. Use this first to find a part.',
+      'Search the parts catalog by part number (OEM / alternate / superseded / aftermarket), part name, or a local/colloquial term (Indonesian or English). Returns candidate canonical parts with a primary number, best matches first. Use this first to find a part. Keep the query SHORT — a part number or a couple of keywords (e.g. "head gasket" or "paking kepala"). Do NOT include the motorcycle model/brand in the query; results are ranked by how many of your words match.',
     input_schema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'A part number, part name, or local term to search for.' },
+        query: {
+          type: 'string',
+          description: 'A part number, or a few keywords from the part name/term. No motorcycle model.',
+        },
       },
       required: ['query'],
     },

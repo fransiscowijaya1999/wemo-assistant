@@ -218,7 +218,8 @@ convention.)
   slice; it needs a new clerk-facing backend chat endpoint.)
 - **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
 - **AI assistant (dedicated tab):** ✅ done. Backend `POST /chat` is a **read-only** clerk assistant
-  — model-agnostic `ChatProvider` seam (Claude, or a keyless `AI_CHAT=stub` for local testing) with
+  — model-agnostic `ChatProvider` seam (Claude, DeepSeek, or a keyless `AI_CHAT=stub`; pick via
+  `CHAT_PROVIDER`) with
   only read tools (`search_parts`, `get_part`); it performs no writes (authorization invariant). The
   Assistant tab is a full chat (bubbles, thinking indicator, offline banner, citation chips → part
   detail). Verified on the emulator via the stub; real answers need `ANTHROPIC_API_KEY` (`.dev.vars`
