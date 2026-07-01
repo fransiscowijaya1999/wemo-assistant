@@ -114,4 +114,5 @@ One-time Cloudflare setup (interactive — run yourself): `wrangler login`, then
 - [x] Slice 6: dot mapping — R2 image storage + balloon dots (POST/GET image, PUT dots) + admin diagram/dot editor.
 - [x] Slice 7: AI auto-crop diagram + auto-place balloon dots at ingest (extraction returns diagram bbox + per-ref coords; admin crops client-side, transforms + saves dots).
 - [x] Slice 8: whole-catalog batch ingest — admin renders the PDF (pdf.js), per-page type select, concurrency-limited extract, bulk commit (group inferred from code, dedup/merge, auto-crop + dots).
-- [ ] Later: serial/variant applicability, color review UI, multi-brand/web-source adapter, sync API, clerk mobile, semantic lookup.
+- [x] Slice 9: admin UI cleanup — Mantine + tabs (Ingest/Batch/Dot mapping/Browse/Settings); Browse view (assemblies + lookup part by any number).
+- [ ] Later: sync API, clerk mobile, serial/variant applicability, color-review UI, semantic lookup, multi-brand/web-source adapter, bundle code-split.

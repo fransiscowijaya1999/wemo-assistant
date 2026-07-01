@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { Alert, Badge, Box, Button, FileButton, Group, Loader, ScrollArea, Select, Stack, Text } from '@mantine/core';
 import { api, imageUrl } from './api';
 import { b64of, fileToDataUrl, imageMeta } from './ingest-helpers';
 import type { Assembly, EditorDot, FullItem } from './types';
 
 export function DotEditor({ machineId, refreshKey }: { machineId: string; refreshKey: number }) {
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
-  const [asmId, setAsmId] = useState('');
+  const [asmId, setAsmId] = useState<string | null>(null);
   const [items, setItems] = useState<FullItem[]>([]);
   const [dots, setDots] = useState<EditorDot[]>([]);
   const [selItem, setSelItem] = useState('');
@@ -17,13 +18,13 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setAsmId('');
+    setAsmId(null);
     setItems([]);
     setDots([]);
     api.listAssemblies(machineId).then(setAssemblies).catch((e) => setErr(String(e)));
   }, [machineId, refreshKey]);
 
-  async function openAssembly(id: string) {
+  async function openAssembly(id: string | null) {
     setAsmId(id);
     setErr('');
     setMsg('');
@@ -56,8 +57,7 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
     setDots((d) => d.filter((_, i) => i !== idx));
   }
 
-  async function onImage(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function onImage(file: File | null) {
     if (!file || !asmId) return;
     setBusy('Uploading image…');
     setErr('');
@@ -93,42 +93,63 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
   }
 
   return (
-    <section className="card">
-      <h2>Dot mapping</h2>
-      <label>
-        Assembly
-        <select value={asmId} onChange={(e) => openAssembly(e.target.value)}>
-          <option value="">— select —</option>
-          {assemblies.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.code} · {a.name}
-            </option>
-          ))}
-        </select>
-      </label>
+    <Stack>
+      <Select
+        placeholder="Select assembly"
+        data={assemblies.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` }))}
+        value={asmId}
+        onChange={openAssembly}
+        searchable
+        w={360}
+      />
 
       {asmId && (
         <>
-          <div className="row">
-            <input type="file" accept="image/*" onChange={onImage} />
-            <span className="hint">{hasImage ? 'diagram loaded' : 'no diagram yet — upload one'}</span>
-          </div>
+          <Group>
+            <FileButton onChange={onImage} accept="image/*">
+              {(props) => (
+                <Button variant="default" {...props}>
+                  Upload diagram
+                </Button>
+              )}
+            </FileButton>
+            <Text size="sm" c="dimmed">
+              {hasImage ? 'diagram loaded' : 'no diagram yet — upload one'}
+            </Text>
+            <Button onClick={save} loading={busy.startsWith('Saving')} disabled={!hasImage}>
+              Save dots
+            </Button>
+          </Group>
 
-          <div className="doteditor">
-            <div className="itemlist">
-              <p className="hint">Pick a ref, then click the diagram to drop its dot. Click a dot to remove it.</p>
-              {items.map((it) => (
-                <button
-                  key={it.id}
-                  className={it.id === selItem ? 'itembtn sel' : 'itembtn'}
-                  onClick={() => setSelItem(it.id)}
-                >
-                  <b>{it.refNo}</b> {it.part?.nameRaw ?? ''} <span className="cnt">{dotsForItem(it.id)}</span>
-                </button>
-              ))}
-            </div>
+          <Text size="xs" c="dimmed">
+            Pick a ref on the left, then click the diagram to drop its dot. Click a dot to remove it.
+          </Text>
 
-            <div className="canvaswrap">
+          <Group align="flex-start" wrap="nowrap">
+            <ScrollArea h={520} w={280} type="auto">
+              <Stack gap={4}>
+                {items.map((it) => (
+                  <Button
+                    key={it.id}
+                    fullWidth
+                    size="xs"
+                    justify="space-between"
+                    variant={it.id === selItem ? 'filled' : 'default'}
+                    rightSection={
+                      <Badge size="xs" variant="light">
+                        {dotsForItem(it.id)}
+                      </Badge>
+                    }
+                    onClick={() => setSelItem(it.id)}
+                    styles={{ label: { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                  >
+                    {it.refNo} · {it.part?.nameRaw ?? ''}
+                  </Button>
+                ))}
+              </Stack>
+            </ScrollArea>
+
+            <Box style={{ flex: 1 }}>
               {hasImage ? (
                 <div className="canvas" ref={canvasRef} onClick={onCanvasClick}>
                   <img src={`${imageUrl(asmId)}?v=${imgV}`} alt="diagram" draggable={false} />
@@ -145,20 +166,21 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
                   ))}
                 </div>
               ) : (
-                <p className="hint">Upload a diagram image to start placing dots.</p>
+                <Text c="dimmed">Upload a diagram image to start placing dots.</Text>
               )}
-            </div>
-          </div>
-
-          <button className="primary" onClick={save} disabled={!!busy}>
-            Save dots
-          </button>
+            </Box>
+          </Group>
         </>
       )}
 
-      {busy && <p className="busy">{busy}</p>}
-      {err && <p className="err">{err}</p>}
-      {msg && <p className="ok">{msg}</p>}
-    </section>
+      {busy && (
+        <Group gap="xs">
+          <Loader size="sm" />
+          <Text c="blue">{busy}</Text>
+        </Group>
+      )}
+      {err && <Alert color="red">{err}</Alert>}
+      {msg && <Alert color="green">{msg}</Alert>}
+    </Stack>
   );
 }

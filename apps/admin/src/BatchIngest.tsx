@@ -1,6 +1,19 @@
 import { useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import {
+  Alert,
+  Button,
+  FileButton,
+  Group,
+  Image,
+  Loader,
+  Paper,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@mantine/core';
 import { api } from './api';
 import { autoMap, b64of } from './ingest-helpers';
 import type { ExtractedColorPage, ExtractedPage } from './types';
@@ -25,6 +38,15 @@ type PageState = {
 function inferGroup(code: string): 'engine' | 'frame' {
   return code.trim().toUpperCase().startsWith('F') ? 'frame' : 'engine';
 }
+
+const borderFor: Record<PageStatus, string> = {
+  pending: 'var(--mantine-color-gray-3)',
+  extracting: 'var(--mantine-color-blue-4)',
+  extracted: 'var(--mantine-color-blue-6)',
+  committing: 'var(--mantine-color-blue-4)',
+  committed: 'var(--mantine-color-green-6)',
+  error: 'var(--mantine-color-red-6)',
+};
 
 async function renderPdf(
   file: File,
@@ -68,8 +90,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const patch = (i: number, p: Partial<PageState>) =>
     setPages((prev) => prev.map((pg, k) => (k === i ? { ...pg, ...p } : pg)));
 
-  async function onPdf(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function onPdf(file: File | null) {
     if (!file) return;
     setErr('');
     setMsg('');
@@ -79,8 +100,8 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
       const rendered = await renderPdf(file, (n, t) => setBusy(`Rendering PDF… ${n}/${t}`));
       setPages(rendered.map((r) => ({ pageNo: r.pageNo, dataUrl: r.dataUrl, type: 'skip', status: 'pending' })));
       setMsg(`${rendered.length} pages rendered. Mark each page's type, then Extract selected.`);
-    } catch (e2) {
-      setErr(String(e2));
+    } catch (e) {
+      setErr(String(e));
     } finally {
       setBusy('');
     }
@@ -89,9 +110,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const setAll = (type: PageType) => setPages((prev) => prev.map((pg) => ({ ...pg, type })));
 
   async function extractSelected() {
-    const targets = pages
-      .map((p, i) => ({ p, i }))
-      .filter((x) => x.p.type !== 'skip' && x.p.status !== 'committed');
+    const targets = pages.map((p, i) => ({ p, i })).filter((x) => x.p.type !== 'skip' && x.p.status !== 'committed');
     if (!targets.length) {
       setErr('Mark some pages as assembly or color first.');
       return;
@@ -116,11 +135,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
           });
         } else {
           const { extracted } = await api.ingestColorPage(b64, mediaType);
-          patch(i, {
-            status: 'extracted',
-            extracted,
-            info: `${extracted.colors.length} colors · ${extracted.items.length} parts`,
-          });
+          patch(i, { status: 'extracted', extracted, info: `${extracted.colors.length} colors · ${extracted.items.length} parts` });
         }
       } catch (e2) {
         patch(i, { status: 'error', error: String(e2) });
@@ -147,7 +162,6 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
     setMsg('');
     let done = 0;
     setBusy(`Committing 0/${targets.length}…`);
-    // Sequential: dedup/merge relies on earlier writes being visible.
     for (const { p, i } of targets) {
       patch(i, { status: 'committing' });
       try {
@@ -159,7 +173,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
           try {
             n = await autoMap(summary.assemblyId, ex, p.dataUrl);
           } catch {
-            /* dots are best-effort */
+            /* dots best-effort */
           }
           patch(i, { status: 'committed', info: `${ex.assembly.code} → ${group}, ${n} dots` });
         } else {
@@ -183,56 +197,77 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const nColor = pages.filter((p) => p.type === 'color').length;
 
   return (
-    <section className="card">
-      <h2>Whole-catalog batch ingest</h2>
-      <div className="row">
-        <input type="file" accept="application/pdf" onChange={onPdf} />
+    <Stack>
+      <Group align="center">
+        <FileButton onChange={onPdf} accept="application/pdf">
+          {(props) => (
+            <Button variant="default" {...props}>
+              Choose catalog PDF
+            </Button>
+          )}
+        </FileButton>
         {pages.length > 0 && (
           <>
-            <span className="hint">
+            <Text size="sm" c="dimmed">
               {pages.length} pages · {nAssembly} assembly · {nColor} color
-            </span>
-            <button onClick={() => setAll('assembly')}>All → assembly</button>
-            <button onClick={() => setAll('skip')}>All → skip</button>
-            <button onClick={extractSelected} disabled={!!busy}>
+            </Text>
+            <Button variant="light" onClick={() => setAll('assembly')}>
+              All → assembly
+            </Button>
+            <Button variant="light" onClick={() => setAll('skip')}>
+              All → skip
+            </Button>
+            <Button onClick={extractSelected} disabled={!!busy}>
               Extract selected
-            </button>
-            <button className="primary" onClick={commitAll} disabled={!!busy || !machineId}>
+            </Button>
+            <Button color="green" onClick={commitAll} disabled={!!busy}>
               Commit all
-            </button>
+            </Button>
           </>
         )}
-      </div>
-      <p className="hint">
+      </Group>
+      <Text size="xs" c="dimmed">
         Renders the PDF in your browser (pdf.js). Mark front-matter/index pages as “skip”. Each
-        assembly/color page is one paid Claude call; group is inferred from the assembly code (E→engine,
-        F→frame).
-      </p>
+        assembly/color page is one paid Claude call; group is inferred from the assembly code
+        (E→engine, F→frame).
+      </Text>
 
-      {busy && <p className="busy">{busy}</p>}
-      {err && <p className="err">{err}</p>}
-      {msg && <p className="ok">{msg}</p>}
+      {busy && (
+        <Group gap="xs">
+          <Loader size="sm" />
+          <Text c="blue">{busy}</Text>
+        </Group>
+      )}
+      {err && <Alert color="red">{err}</Alert>}
+      {msg && <Alert color="green">{msg}</Alert>}
 
-      <div className="pagegrid">
-        {pages.map((p, i) => (
-          <div key={p.pageNo} className={`pagecell ${p.status}`}>
-            <img src={p.dataUrl} alt={`page ${p.pageNo}`} />
-            <div className="pagemeta">
-              <b>p{p.pageNo}</b>
-              <select value={p.type} onChange={(e) => patch(i, { type: e.target.value as PageType })}>
-                <option value="skip">skip</option>
-                <option value="assembly">assembly</option>
-                <option value="color">color</option>
-              </select>
-            </div>
-            <div className="pagestatus">
-              {p.status}
-              {p.info ? `: ${p.info}` : ''}
-              {p.error ? `: ${p.error}` : ''}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+      {pages.length > 0 && (
+        <SimpleGrid cols={{ base: 2, sm: 4, md: 6 }} spacing="xs">
+          {pages.map((p, i) => (
+            <Paper key={p.pageNo} withBorder p={4} style={{ borderColor: borderFor[p.status] }}>
+              <Image src={p.dataUrl} h={110} fit="contain" alt={`page ${p.pageNo}`} />
+              <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
+                <Text size="xs" fw={600}>
+                  p{p.pageNo}
+                </Text>
+                <Select
+                  size="xs"
+                  w={92}
+                  data={['skip', 'assembly', 'color']}
+                  value={p.type}
+                  onChange={(v) => patch(i, { type: (v as PageType) ?? 'skip' })}
+                  allowDeselect={false}
+                />
+              </Group>
+              <Text size="xs" c={p.status === 'error' ? 'red' : p.status === 'committed' ? 'green' : 'dimmed'} lineClamp={3}>
+                {p.status}
+                {p.info ? `: ${p.info}` : ''}
+                {p.error ? `: ${p.error}` : ''}
+              </Text>
+            </Paper>
+          ))}
+        </SimpleGrid>
+      )}
+    </Stack>
   );
 }
