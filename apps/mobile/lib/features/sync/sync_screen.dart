@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/settings/app_settings.dart';
+import '../../core/util/relative_time.dart';
 import 'sync_controller.dart';
 
 /// M1 debug/sync screen: set the backend URL, pull the catalog, and see
@@ -119,7 +120,7 @@ class _StatusBanner extends StatelessWidget {
         scheme.onSurfaceVariant,
         controller.lastSyncedAt == null
             ? 'Never synced. Set the URL and tap Sync now.'
-            : 'Last synced ${_ago(controller.lastSyncedAt!)}.',
+            : 'Last synced ${relativeAgo(controller.lastSyncedAt!)}.',
       ),
       SyncStatus.syncing => (
         Icons.sync,
@@ -130,7 +131,7 @@ class _StatusBanner extends StatelessWidget {
         Icons.check_circle_outline,
         Colors.green.shade700,
         'Synced ${controller.rowsPulled} row(s), ${controller.imagesFetched} image(s) '
-            'across ${controller.pagesPulled} page(s). Last synced ${_ago(controller.lastSyncedAt!)}.',
+            'across ${controller.pagesPulled} page(s). Last synced ${relativeAgo(controller.lastSyncedAt!)}.',
       ),
       SyncStatus.error => (Icons.error_outline, scheme.error, controller.errorMessage ?? 'Sync failed'),
     };
@@ -179,12 +180,4 @@ class _CountTile extends StatelessWidget {
 String _pretty(String camel) {
   final withSpaces = camel.replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[1]}');
   return withSpaces.isEmpty ? camel : withSpaces[0].toUpperCase() + withSpaces.substring(1);
-}
-
-String _ago(DateTime t) {
-  final d = DateTime.now().difference(t);
-  if (d.inSeconds < 60) return '${d.inSeconds}s ago';
-  if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-  if (d.inHours < 24) return '${d.inHours}h ago';
-  return '${d.inDays}d ago';
 }

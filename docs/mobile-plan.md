@@ -231,8 +231,14 @@ convention.)
   Assistant tab is a full chat (bubbles, thinking indicator, offline banner, citation chips → part
   detail). Verified on the emulator via the stub; real answers need `ANTHROPIC_API_KEY` (`.dev.vars`
   locally / `wrangler secret` in prod).
-- **M5 — Polish:** remaining offline indicators / force-full-sync affordances and general shop-floor
-  polish. (The online AI fuzzy-lookup flow is delivered by the Assistant tab above.)
+- **M5 — Polish:** ✅ done. `ConnectivityController` probes `GET /health` every 30s (backend
+  reachability, not radio state — shop wifi can be up while the internet is down; also re-probes on
+  app resume). The shell shows an app-wide offline strip above the nav bar — "Offline — using local
+  catalog, synced 2h ago" — visible on every tab; tapping it retries immediately. **Auto-sync:**
+  whenever the backend becomes reachable (launch, reconnect) and the replica hasn't synced in 15
+  minutes, a silent delta pull runs, so the clerk never has to remember the Sync tab (manual
+  Sync now / Force full sync remain). Shared `relativeAgo` freshness formatting. Verified on the
+  emulator (auto-sync on launch, strip appears ≤30s after the backend dies, tap-retry clears it).
 - **M6 — Variant/serial applicability (backend done, mobile pending):** the replica already syncs
   `machine_variants` and populated `item_resolutions` (variantId/serialFrom/serialTo; variant NULL =
   all variants, NULL serial bound = unbounded). Mobile should let the clerk pick the bike's variant

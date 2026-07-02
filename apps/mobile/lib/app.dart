@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'core/connectivity/connectivity_controller.dart';
 import 'core/db/app_database.dart';
 import 'core/images/image_store.dart';
 import 'core/settings/app_settings.dart';
@@ -29,6 +30,9 @@ class WemoClerkApp extends StatelessWidget {
         Provider<LookupRepository>(create: (_) => LookupRepository(db)),
         ChangeNotifierProvider<SyncController>(
           create: (_) => SyncController(db: db, settings: settings, imageStore: imageStore),
+        ),
+        ChangeNotifierProvider<ConnectivityController>(
+          create: (_) => ConnectivityController(settings: settings),
         ),
         ChangeNotifierProvider<AssistantController>(
           create: (_) => AssistantController(settings: settings),
