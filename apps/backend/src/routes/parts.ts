@@ -13,8 +13,19 @@ import {
   partNumbers,
   parts,
 } from '../db/schema';
+import { searchParts } from '../ai/catalog-tools';
 
 export const partsRoute = new Hono<{ Bindings: Bindings }>();
+
+// Fuzzy candidate search: partial part numbers (with or without dashes), names,
+// aliases — token-scored, best first. Same engine as the assistant's search tool.
+// Registered before '/:id' so 'search' is not captured as an id.
+partsRoute.get('/search', async (c) => {
+  const q = c.req.query('q');
+  if (!q?.trim()) return c.json({ error: 'q query param is required' }, 400);
+  const results = await searchParts(getDb(c.env), q);
+  return c.json({ results });
+});
 
 async function getPartFull(db: Db, id: string) {
   const part = await db.select().from(parts).where(eq(parts.id, id)).get();

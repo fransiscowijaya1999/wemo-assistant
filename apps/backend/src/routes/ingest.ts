@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { requireAdmin } from '../middleware/auth';
-import { getVisionProvider } from '../ai';
+import { getVisionProvider, resolveAiConfig } from '../ai';
 import type { ImageMediaType } from '../ai/provider';
 import { extractedColorPage, extractedPage } from '../ai/types';
 import { getDb } from '../db/client';
@@ -21,7 +21,7 @@ ingestRoute.post('/page', requireAdmin, async (c) => {
   }
   const mediaType = (body.mediaType ?? 'image/png') as ImageMediaType;
 
-  const provider = getVisionProvider(c.env);
+  const provider = getVisionProvider(await resolveAiConfig(getDb(c.env), c.env));
   try {
     const extracted = await provider.extractCatalogPage({ imageBase64: body.imageBase64, mediaType });
     return c.json({ extracted });
@@ -70,7 +70,7 @@ ingestRoute.post('/color-page', requireAdmin, async (c) => {
   }
   const mediaType = (body.mediaType ?? 'image/png') as ImageMediaType;
 
-  const provider = getVisionProvider(c.env);
+  const provider = getVisionProvider(await resolveAiConfig(getDb(c.env), c.env));
   try {
     const extracted = await provider.extractColorPage({ imageBase64: body.imageBase64, mediaType });
     return c.json({ extracted });

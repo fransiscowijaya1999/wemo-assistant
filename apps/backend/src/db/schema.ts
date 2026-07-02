@@ -211,6 +211,13 @@ export const serviceItems = sqliteTable('service_items', {
   index('service_items_updated_idx').on(t.updatedAt, t.id),
 ]);
 
+/** Server-only key/value config (e.g. runtime-editable AI keys). NOT synced to replicas. */
+export const appSettings = sqliteTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+});
+
 export const users = sqliteTable('users', {
   id: pk(),
   email: text('email').notNull().unique(),

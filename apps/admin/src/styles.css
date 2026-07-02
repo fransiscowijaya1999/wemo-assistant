@@ -17,8 +17,8 @@
 .marker {
   position: absolute;
   transform: translate(-50%, -50%);
-  background: #2563eb;
-  color: #fff;
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-color-white);
   font-size: 0.7rem;
   min-width: 1.15rem;
   height: 1.15rem;
@@ -27,5 +27,5 @@
   border-radius: 50%;
   padding: 0 0.15rem;
   cursor: pointer;
-  box-shadow: 0 0 0 2px #fff;
+  box-shadow: 0 0 0 2px var(--mantine-color-body);
 }

@@ -1,4 +1,5 @@
 import type {
+  AiSettings,
   Assembly,
   ColorCommitSummary,
   CommitSummary,
@@ -9,6 +10,7 @@ import type {
   Machine,
   MachineVariant,
   PartFull,
+  SearchResult,
 } from './types';
 
 const BASE = '/api';
@@ -90,4 +92,10 @@ export const api = {
       body: { dots },
     }),
   lookupPart: (number: string) => req<PartFull>(`/parts?number=${encodeURIComponent(number)}`),
+  searchParts: (q: string) => req<{ results: SearchResult[] }>(`/parts/search?q=${encodeURIComponent(q)}`),
+  getPart: (id: string) => req<PartFull>(`/parts/${encodeURIComponent(id)}`),
+  checkAuth: () => req<{ ok: boolean }>('/auth/check', { admin: true }),
+  getAiSettings: () => req<AiSettings>('/settings/ai', { admin: true }),
+  saveAiSettings: (s: Partial<Pick<AiSettings, 'chatProvider' | 'chatModel' | 'anthropicKey' | 'deepseekKey'>>) =>
+    req<AiSettings>('/settings/ai', { method: 'PUT', admin: true, body: s }),
 };

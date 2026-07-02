@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, like, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import {
   aliases,
@@ -19,14 +19,23 @@ import type { ChatToolDef, Citation, ToolExecutor } from './chat';
 
 const SEARCH_LIMIT = 25;
 
-/** Part ids matching a single term (substring, case-insensitive) in any field. */
+/** Part ids matching a single term (substring, case-insensitive) in any field.
+ * Part numbers also match with separators stripped, so a partial number typed
+ * without dashes ("31928MFF" or "31928") still resolves. */
 async function idsMatchingTerm(db: Db, term: string): Promise<Set<string>> {
   const pattern = `%${term}%`;
+  const condensed = term.replace(/[^0-9a-z]/gi, '');
+  const numberMatch = condensed
+    ? or(
+        like(partNumbers.value, pattern),
+        like(sql`replace(${partNumbers.value}, '-', '')`, `%${condensed}%`),
+      )
+    : like(partNumbers.value, pattern);
   const [byNumber, byName, byAlias] = await Promise.all([
     db
       .select({ partId: partNumbers.partId })
       .from(partNumbers)
-      .where(and(like(partNumbers.value, pattern), isNull(partNumbers.deletedAt))),
+      .where(and(numberMatch, isNull(partNumbers.deletedAt))),
     db
       .select({ partId: parts.id })
       .from(parts)
@@ -39,7 +48,7 @@ async function idsMatchingTerm(db: Db, term: string): Promise<Set<string>> {
   return new Set([...byNumber, ...byName, ...byAlias].map((r) => r.partId));
 }
 
-async function searchParts(db: Db, query: string) {
+export async function searchParts(db: Db, query: string) {
   const q = query.trim();
   if (!q) return [];
 
@@ -192,7 +201,7 @@ export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
   {
     name: 'search_parts',
     description:
-      'Search the parts catalog by part number (OEM / alternate / superseded / aftermarket), part name, or a local/colloquial term (Indonesian or English). Returns candidate canonical parts with a primary number, best matches first. Use this first to find a part. Keep the query SHORT — a part number or a couple of keywords (e.g. "head gasket" or "paking kepala"). Do NOT include the motorcycle model/brand in the query; results are ranked by how many of your words match.',
+      'Search the parts catalog by part number (OEM / alternate / superseded / aftermarket), part name, or a local/colloquial term (Indonesian or English). Part numbers match even when PARTIAL or typed without dashes ("31928MFF" finds 31928-MFF-D01). Returns candidate canonical parts with a primary number, best matches first. Use this first to find a part. Keep the query SHORT — a part number or a couple of keywords (e.g. "head gasket" or "paking kepala"). Do NOT include the motorcycle model/brand in the query; results are ranked by how many of your words match.',
     input_schema: {
       type: 'object',
       properties: {

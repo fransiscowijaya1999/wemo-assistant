@@ -4,18 +4,30 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   Alert,
   Button,
+  Card,
   FileButton,
   Group,
   Image,
   Loader,
   Paper,
+  Progress,
   Select,
   SimpleGrid,
   Stack,
   Text,
+  ThemeIcon,
 } from '@mantine/core';
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconDatabaseImport,
+  IconFileTypePdf,
+  IconScan,
+  IconX,
+} from '@tabler/icons-react';
 import { api } from './api';
 import { autoMap, b64of } from './ingest-helpers';
+import { notifySuccess } from './notify';
 import type { ExtractedColorPage, ExtractedPage } from './types';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -35,18 +47,28 @@ type PageState = {
   error?: string;
 };
 
+type Phase = { label: string; done: number; total: number } | null;
+
 function inferGroup(code: string): 'engine' | 'frame' {
   return code.trim().toUpperCase().startsWith('F') ? 'frame' : 'engine';
 }
 
 const borderFor: Record<PageStatus, string> = {
-  pending: 'var(--mantine-color-gray-3)',
+  pending: 'var(--mantine-color-default-border)',
   extracting: 'var(--mantine-color-blue-4)',
   extracted: 'var(--mantine-color-blue-6)',
   committing: 'var(--mantine-color-blue-4)',
   committed: 'var(--mantine-color-green-6)',
   error: 'var(--mantine-color-red-6)',
 };
+
+function StatusIcon({ status }: { status: PageStatus }) {
+  if (status === 'extracting' || status === 'committing') return <Loader size={14} />;
+  if (status === 'committed') return <IconCheck size={14} color="var(--mantine-color-green-6)" />;
+  if (status === 'extracted') return <IconCheck size={14} color="var(--mantine-color-blue-6)" />;
+  if (status === 'error') return <IconX size={14} color="var(--mantine-color-red-6)" />;
+  return null;
+}
 
 async function renderPdf(
   file: File,
@@ -83,9 +105,8 @@ async function runPool<T>(items: T[], limit: number, worker: (t: T) => Promise<v
 
 export function BatchIngest({ machineId, onCommitted }: { machineId: string; onCommitted: () => void }) {
   const [pages, setPages] = useState<PageState[]>([]);
-  const [busy, setBusy] = useState('');
+  const [phase, setPhase] = useState<Phase>(null);
   const [err, setErr] = useState('');
-  const [msg, setMsg] = useState('');
 
   const patch = (i: number, p: Partial<PageState>) =>
     setPages((prev) => prev.map((pg, k) => (k === i ? { ...pg, ...p } : pg)));
@@ -93,17 +114,16 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   async function onPdf(file: File | null) {
     if (!file) return;
     setErr('');
-    setMsg('');
     setPages([]);
-    setBusy('Rendering PDF…');
+    setPhase({ label: 'Rendering PDF', done: 0, total: 1 });
     try {
-      const rendered = await renderPdf(file, (n, t) => setBusy(`Rendering PDF… ${n}/${t}`));
+      const rendered = await renderPdf(file, (n, t) => setPhase({ label: 'Rendering PDF', done: n, total: t }));
       setPages(rendered.map((r) => ({ pageNo: r.pageNo, dataUrl: r.dataUrl, type: 'skip', status: 'pending' })));
-      setMsg(`${rendered.length} pages rendered. Mark each page's type, then Extract selected.`);
+      notifySuccess(`${rendered.length} pages rendered`, "Mark each page's type, then Extract selected.");
     } catch (e) {
       setErr(String(e));
     } finally {
-      setBusy('');
+      setPhase(null);
     }
   }
 
@@ -119,9 +139,8 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
       return;
     }
     setErr('');
-    setMsg('');
     let done = 0;
-    setBusy(`Extracting 0/${targets.length}…`);
+    setPhase({ label: 'Extracting', done: 0, total: targets.length });
     await runPool(targets, CONCURRENCY, async ({ p, i }) => {
       patch(i, { status: 'extracting', error: undefined });
       try {
@@ -141,11 +160,12 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
         patch(i, { status: 'error', error: String(e2) });
       } finally {
         done++;
-        setBusy(`Extracting ${done}/${targets.length}…`);
+        setPhase({ label: 'Extracting', done, total: targets.length });
       }
     });
-    setBusy('');
-    setMsg('Extraction done. Review the pages, then Commit all.');
+    setPhase(null);
+    const failed = pages.filter((p) => p.status === 'error').length;
+    notifySuccess('Extraction done', failed ? `${failed} pages failed — check the grid.` : 'Review the pages, then Commit all.');
   }
 
   async function commitAll() {
@@ -159,9 +179,9 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
       return;
     }
     setErr('');
-    setMsg('');
     let done = 0;
-    setBusy(`Committing 0/${targets.length}…`);
+    let failed = 0;
+    setPhase({ label: 'Committing', done: 0, total: targets.length });
     for (const { p, i } of targets) {
       patch(i, { status: 'committing' });
       try {
@@ -182,14 +202,18 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
           patch(i, { status: 'committed', info: `${summary.variantsCreated} color variants` });
         }
       } catch (e2) {
+        failed++;
         patch(i, { status: 'error', error: String(e2) });
       } finally {
         done++;
-        setBusy(`Committing ${done}/${targets.length}…`);
+        setPhase({ label: 'Committing', done, total: targets.length });
       }
     }
-    setBusy('');
-    setMsg('Commit done.');
+    setPhase(null);
+    notifySuccess(
+      `Committed ${done - failed}/${targets.length} pages`,
+      failed ? `${failed} failed — check the grid.` : 'All pages are in the catalog.',
+    );
     onCommitted();
   }
 
@@ -198,48 +222,67 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
 
   return (
     <Stack>
-      <Group align="center">
-        <FileButton onChange={onPdf} accept="application/pdf">
-          {(props) => (
-            <Button variant="default" {...props}>
-              Choose catalog PDF
-            </Button>
-          )}
-        </FileButton>
-        {pages.length > 0 && (
-          <>
-            <Text size="sm" c="dimmed">
-              {pages.length} pages · {nAssembly} assembly · {nColor} color
+      {pages.length === 0 ? (
+        <Card withBorder>
+          <Stack align="center" gap={6} py="lg">
+            <ThemeIcon variant="light" size="xl" radius="xl">
+              <IconFileTypePdf size={26} />
+            </ThemeIcon>
+            <Text fw={500}>Ingest a whole catalog PDF</Text>
+            <Text size="xs" c="dimmed" ta="center" maw={520}>
+              Renders the PDF in your browser (pdf.js). Mark front-matter/index pages as “skip”. Each
+              assembly/color page is one paid Claude call; group is inferred from the assembly code
+              (E→engine, F→frame).
             </Text>
-            <Button variant="light" onClick={() => setAll('assembly')}>
-              All → assembly
-            </Button>
-            <Button variant="light" onClick={() => setAll('skip')}>
-              All → skip
-            </Button>
-            <Button onClick={extractSelected} disabled={!!busy}>
-              Extract selected
-            </Button>
-            <Button color="green" onClick={commitAll} disabled={!!busy}>
-              Commit all
-            </Button>
-          </>
-        )}
-      </Group>
-      <Text size="xs" c="dimmed">
-        Renders the PDF in your browser (pdf.js). Mark front-matter/index pages as “skip”. Each
-        assembly/color page is one paid Claude call; group is inferred from the assembly code
-        (E→engine, F→frame).
-      </Text>
-
-      {busy && (
-        <Group gap="xs">
-          <Loader size="sm" />
-          <Text c="blue">{busy}</Text>
+            <FileButton onChange={onPdf} accept="application/pdf">
+              {(props) => (
+                <Button mt="xs" leftSection={<IconFileTypePdf size={16} />} {...props}>
+                  Choose catalog PDF
+                </Button>
+              )}
+            </FileButton>
+          </Stack>
+        </Card>
+      ) : (
+        <Group align="center">
+          <FileButton onChange={onPdf} accept="application/pdf">
+            {(props) => (
+              <Button variant="default" leftSection={<IconFileTypePdf size={16} />} {...props}>
+                Choose catalog PDF
+              </Button>
+            )}
+          </FileButton>
+          <Text size="sm" c="dimmed">
+            {pages.length} pages · {nAssembly} assembly · {nColor} color
+          </Text>
+          <Button variant="light" onClick={() => setAll('assembly')}>
+            All → assembly
+          </Button>
+          <Button variant="light" onClick={() => setAll('skip')}>
+            All → skip
+          </Button>
+          <Button leftSection={<IconScan size={16} />} onClick={extractSelected} disabled={!!phase}>
+            Extract selected
+          </Button>
+          <Button color="green" leftSection={<IconDatabaseImport size={16} />} onClick={commitAll} disabled={!!phase}>
+            Commit all
+          </Button>
         </Group>
       )}
-      {err && <Alert color="red">{err}</Alert>}
-      {msg && <Alert color="green">{msg}</Alert>}
+
+      {phase && (
+        <Stack gap={4}>
+          <Text size="sm" c="dimmed">
+            {phase.label} {phase.done}/{phase.total}…
+          </Text>
+          <Progress value={phase.total ? (phase.done / phase.total) * 100 : 0} animated />
+        </Stack>
+      )}
+      {err && (
+        <Alert color="red" icon={<IconAlertCircle size={16} />} withCloseButton onClose={() => setErr('')}>
+          {err}
+        </Alert>
+      )}
 
       {pages.length > 0 && (
         <SimpleGrid cols={{ base: 2, sm: 4, md: 6 }} spacing="xs">
@@ -247,9 +290,12 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
             <Paper key={p.pageNo} withBorder p={4} style={{ borderColor: borderFor[p.status] }}>
               <Image src={p.dataUrl} h={110} fit="contain" alt={`page ${p.pageNo}`} />
               <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
-                <Text size="xs" fw={600}>
-                  p{p.pageNo}
-                </Text>
+                <Group gap={4} wrap="nowrap">
+                  <Text size="xs" fw={600}>
+                    p{p.pageNo}
+                  </Text>
+                  <StatusIcon status={p.status} />
+                </Group>
                 <Select
                   size="xs"
                   w={92}

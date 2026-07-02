@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../bindings';
-import { getChatProvider } from '../ai';
+import { getChatProvider, resolveAiConfig } from '../ai';
 import type { ChatMessage } from '../ai/chat';
 import { createCatalogToolset } from '../ai/catalog-tools';
 import { getDb } from '../db/client';
@@ -36,7 +36,7 @@ chatRoute.post('/', async (c) => {
 
   let provider;
   try {
-    provider = getChatProvider(c.env);
+    provider = getChatProvider(await resolveAiConfig(getDb(c.env), c.env));
   } catch (e) {
     return c.json({ error: 'assistant not configured', detail: String(e) }, 503);
   }

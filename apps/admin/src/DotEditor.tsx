@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { Alert, Badge, Box, Button, FileButton, Group, Loader, ScrollArea, Select, Stack, Text } from '@mantine/core';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  FileButton,
+  Group,
+  ScrollArea,
+  Select,
+  Stack,
+  Text,
+  ThemeIcon,
+} from '@mantine/core';
+import { IconDeviceFloppy, IconMapPin, IconPhotoUp } from '@tabler/icons-react';
 import { api, imageUrl } from './api';
 import { b64of, fileToDataUrl, imageMeta } from './ingest-helpers';
+import { notifyError, notifySuccess } from './notify';
 import type { Assembly, EditorDot, FullItem } from './types';
 
 export function DotEditor({ machineId, refreshKey }: { machineId: string; refreshKey: number }) {
@@ -12,22 +26,18 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
   const [selItem, setSelItem] = useState('');
   const [hasImage, setHasImage] = useState(false);
   const [imgV, setImgV] = useState(0);
-  const [busy, setBusy] = useState('');
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState<'idle' | 'uploading' | 'saving'>('idle');
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAsmId(null);
     setItems([]);
     setDots([]);
-    api.listAssemblies(machineId).then(setAssemblies).catch((e) => setErr(String(e)));
+    api.listAssemblies(machineId).then(setAssemblies).catch((e) => notifyError('Could not load assemblies', String(e)));
   }, [machineId, refreshKey]);
 
   async function openAssembly(id: string | null) {
     setAsmId(id);
-    setErr('');
-    setMsg('');
     if (!id) return;
     try {
       const full = await api.getAssemblyFull(id);
@@ -37,7 +47,7 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
       setHasImage(!!full.assembly.imageRef);
       setImgV((v) => v + 1);
     } catch (e) {
-      setErr(String(e));
+      notifyError('Could not load assembly', String(e));
     }
   }
 
@@ -59,9 +69,7 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
 
   async function onImage(file: File | null) {
     if (!file || !asmId) return;
-    setBusy('Uploading image…');
-    setErr('');
-    setMsg('');
+    setBusy('uploading');
     try {
       const dataUrl = await fileToDataUrl(file);
       const { b64, mediaType } = b64of(dataUrl);
@@ -69,118 +77,141 @@ export function DotEditor({ machineId, refreshKey }: { machineId: string; refres
       await api.uploadAssemblyImage(asmId, b64, mediaType, w, h);
       setHasImage(true);
       setImgV((v) => v + 1);
-      setMsg('Image uploaded.');
+      notifySuccess('Image uploaded');
     } catch (e2) {
-      setErr(String(e2));
+      notifyError('Upload failed', String(e2));
     } finally {
-      setBusy('');
+      setBusy('idle');
     }
   }
 
   async function save() {
     if (!asmId) return;
-    setBusy('Saving dots…');
-    setErr('');
-    setMsg('');
+    setBusy('saving');
     try {
       const r = await api.saveDots(asmId, dots);
-      setMsg(`Saved ${r.count} dots.`);
+      notifySuccess(`Saved ${r.count} dots`);
     } catch (e) {
-      setErr(String(e));
+      notifyError('Save failed', String(e));
     } finally {
-      setBusy('');
+      setBusy('idle');
     }
   }
 
   return (
     <Stack>
-      <Select
-        placeholder="Select assembly"
-        data={assemblies.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` }))}
-        value={asmId}
-        onChange={openAssembly}
-        searchable
-        w={360}
-      />
+      <Card withBorder>
+        <Group>
+          <Select
+            placeholder="Select assembly"
+            data={assemblies.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` }))}
+            value={asmId}
+            onChange={openAssembly}
+            searchable
+            w={360}
+          />
+          {asmId && (
+            <>
+              <FileButton onChange={onImage} accept="image/*">
+                {(props) => (
+                  <Button
+                    variant="default"
+                    leftSection={<IconPhotoUp size={16} />}
+                    loading={busy === 'uploading'}
+                    {...props}
+                  >
+                    Upload diagram
+                  </Button>
+                )}
+              </FileButton>
+              <Text size="sm" c="dimmed">
+                {hasImage ? 'diagram loaded' : 'no diagram yet — upload one'}
+              </Text>
+              <Button
+                leftSection={<IconDeviceFloppy size={16} />}
+                onClick={save}
+                loading={busy === 'saving'}
+                disabled={!hasImage}
+              >
+                Save dots
+              </Button>
+            </>
+          )}
+        </Group>
+      </Card>
 
       {asmId && (
-        <>
-          <Group>
-            <FileButton onChange={onImage} accept="image/*">
-              {(props) => (
-                <Button variant="default" {...props}>
-                  Upload diagram
-                </Button>
-              )}
-            </FileButton>
-            <Text size="sm" c="dimmed">
-              {hasImage ? 'diagram loaded' : 'no diagram yet — upload one'}
+        <Card withBorder>
+          <Stack gap="sm">
+            <Text size="xs" c="dimmed">
+              Pick a ref on the left, then click the diagram to drop its dot. Click a dot to remove it.
             </Text>
-            <Button onClick={save} loading={busy.startsWith('Saving')} disabled={!hasImage}>
-              Save dots
-            </Button>
-          </Group>
+            <Group align="flex-start" wrap="nowrap">
+              <ScrollArea h={520} w={280} type="auto">
+                {items.length === 0 ? (
+                  <Stack align="center" gap={6} pt="xl">
+                    <ThemeIcon variant="light" size="lg" radius="xl">
+                      <IconMapPin size={20} />
+                    </ThemeIcon>
+                    <Text size="sm" c="dimmed" ta="center">
+                      No positions — commit a page for this assembly first.
+                    </Text>
+                  </Stack>
+                ) : (
+                  <Stack gap={4}>
+                    {items.map((it) => (
+                      <Button
+                        key={it.id}
+                        fullWidth
+                        size="xs"
+                        justify="space-between"
+                        variant={it.id === selItem ? 'filled' : 'default'}
+                        rightSection={
+                          <Badge size="xs" variant="light">
+                            {dotsForItem(it.id)}
+                          </Badge>
+                        }
+                        onClick={() => setSelItem(it.id)}
+                        styles={{ label: { overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                      >
+                        {it.refNo} · {it.part?.nameRaw ?? ''}
+                      </Button>
+                    ))}
+                  </Stack>
+                )}
+              </ScrollArea>
 
-          <Text size="xs" c="dimmed">
-            Pick a ref on the left, then click the diagram to drop its dot. Click a dot to remove it.
-          </Text>
-
-          <Group align="flex-start" wrap="nowrap">
-            <ScrollArea h={520} w={280} type="auto">
-              <Stack gap={4}>
-                {items.map((it) => (
-                  <Button
-                    key={it.id}
-                    fullWidth
-                    size="xs"
-                    justify="space-between"
-                    variant={it.id === selItem ? 'filled' : 'default'}
-                    rightSection={
-                      <Badge size="xs" variant="light">
-                        {dotsForItem(it.id)}
-                      </Badge>
-                    }
-                    onClick={() => setSelItem(it.id)}
-                    styles={{ label: { overflow: 'hidden', textOverflow: 'ellipsis' } }}
-                  >
-                    {it.refNo} · {it.part?.nameRaw ?? ''}
-                  </Button>
-                ))}
-              </Stack>
-            </ScrollArea>
-
-            <Box style={{ flex: 1 }}>
-              {hasImage ? (
-                <div className="canvas" ref={canvasRef} onClick={onCanvasClick}>
-                  <img src={`${imageUrl(asmId)}?v=${imgV}`} alt="diagram" draggable={false} />
-                  {dots.map((d, i) => (
-                    <div
-                      key={i}
-                      className="marker"
-                      style={{ left: `${d.x * 100}%`, top: `${d.y * 100}%` }}
-                      title="click to remove"
-                      onClick={(e) => removeDot(i, e)}
-                    >
-                      {refByItem.get(d.assemblyItemId) ?? '?'}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <Text c="dimmed">Upload a diagram image to start placing dots.</Text>
-              )}
-            </Box>
-          </Group>
-        </>
+              <Box style={{ flex: 1 }}>
+                {hasImage ? (
+                  <div className="canvas" ref={canvasRef} onClick={onCanvasClick}>
+                    <img src={`${imageUrl(asmId)}?v=${imgV}`} alt="diagram" draggable={false} />
+                    {dots.map((d, i) => (
+                      <div
+                        key={i}
+                        className="marker"
+                        style={{ left: `${d.x * 100}%`, top: `${d.y * 100}%` }}
+                        title="click to remove"
+                        onClick={(e) => removeDot(i, e)}
+                      >
+                        {refByItem.get(d.assemblyItemId) ?? '?'}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Stack align="center" gap={6} pt="xl">
+                    <ThemeIcon variant="light" size="lg" radius="xl">
+                      <IconPhotoUp size={20} />
+                    </ThemeIcon>
+                    <Text size="sm" c="dimmed">
+                      Upload a diagram image to start placing dots.
+                    </Text>
+                  </Stack>
+                )}
+              </Box>
+            </Group>
+          </Stack>
+        </Card>
       )}
-
-      {busy && (
-        <Group gap="xs">
-          <Loader size="sm" />
-          <Text c="blue">{busy}</Text>
-        </Group>
-      )}
-      {err && <Alert color="red">{err}</Alert>}
-      {msg && <Alert color="green">{msg}</Alert>}
     </Stack>
   );
 }

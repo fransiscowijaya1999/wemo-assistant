@@ -42,6 +42,17 @@ export type ExtractedColorPage = {
 
 export type Machine = { id: string; brand: string; model: string; typeCode?: string | null };
 
+export type SearchResult = { partId: string; name: string; primaryNumber: string | null };
+
+export type AiSettings = {
+  chatProvider: string;
+  chatModel: string;
+  anthropicKey: string;
+  deepseekKey: string;
+  activeChatProvider: 'anthropic' | 'deepseek' | 'stub' | null;
+  visionConfigured: boolean;
+};
+
 export type MachineVariant = { id: string; name: string; note?: string | null };
 
 export type CommitSummary = {
