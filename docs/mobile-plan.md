@@ -226,6 +226,12 @@ convention.)
   locally / `wrangler secret` in prod).
 - **M5 — Polish:** remaining offline indicators / force-full-sync affordances and general shop-floor
   polish. (The online AI fuzzy-lookup flow is delivered by the Assistant tab above.)
+- **M6 — Variant/serial applicability (backend done, mobile pending):** the replica already syncs
+  `machine_variants` and populated `item_resolutions` (variantId/serialFrom/serialTo; variant NULL =
+  all variants, NULL serial bound = unbounded). Mobile should let the clerk pick the bike's variant
+  (+ optionally frame serial) and filter part/diagram lookups through `item_resolutions` instead of
+  only `assembly_items.base_part_id`. Serial compare rule: numeric when both all-digits, else
+  case-insensitive lexicographic (`apps/backend/src/lib/serial.ts`).
 
 ---
 

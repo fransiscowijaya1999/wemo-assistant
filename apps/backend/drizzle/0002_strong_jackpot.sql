@@ -1,0 +1,1 @@
+CREATE INDEX `item_resolutions_part_number_idx` ON `item_resolutions` (`part_number_id`);

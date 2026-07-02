@@ -4,10 +4,31 @@ import { z } from 'zod';
 // draft rows an admin reviews before they become assemblies/parts/part_numbers.
 // See docs/catalog-format.md.
 
+export const extractedVariantQty = z.object({
+  variant: z.string().describe('Variant column header exactly as printed, e.g. STD or ABS.'),
+  qty: z.number().int().nullable().describe("Quantity in that variant's Jumlah cell; null if unreadable."),
+});
+
 export const extractedPartNumber = z.object({
   value: z.string().describe('The part number exactly as printed, e.g. 12200-KVY-900.'),
   brand: z.string().nullable().optional().describe('Brand if indicated, e.g. NGK, Denso, Honda.'),
   note: z.string().nullable().optional().describe('Any note, e.g. supersession or spec in parentheses.'),
+  serialFrom: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('Frame-serial range start from the "No. Seri" column, digits verbatim. "from 1008001" -> serialFrom=1008001.'),
+  serialTo: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('Frame-serial range end, digits verbatim. "up to 1008000" / "s/d 1008000" -> serialTo=1008000.'),
+  variantQtys: z
+    .array(extractedVariantQty)
+    .optional()
+    .describe(
+      'One entry per NON-EMPTY per-variant Jumlah cell on this part-number row. Omit when the page has a single QTY/Jumlah column.',
+    ),
 });
 
 export const extractedItem = z.object({
@@ -44,6 +65,10 @@ export const extractedPage = z.object({
     .describe('Bounding box (normalized 0..1, top-left origin) of the exploded-diagram region on the page.'),
   items: z.array(extractedItem),
   serviceItems: z.array(extractedServiceItem),
+  variantColumns: z
+    .array(z.string())
+    .optional()
+    .describe('Names of the per-variant Jumlah column headers if the parts table has them, e.g. ["STD","ABS"]. Omit otherwise.'),
 });
 
 export type ExtractedPage = z.infer<typeof extractedPage>;

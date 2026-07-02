@@ -104,6 +104,7 @@ export const itemResolutions = sqliteTable('item_resolutions', {
   ...timestamps(),
 }, (t) => [
   index('item_resolutions_item_idx').on(t.assemblyItemId),
+  index('item_resolutions_part_number_idx').on(t.partNumberId),
   index('item_resolutions_updated_idx').on(t.updatedAt, t.id),
 ]);
 

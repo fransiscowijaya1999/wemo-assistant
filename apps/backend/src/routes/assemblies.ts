@@ -7,11 +7,13 @@ import {
   assemblyItems,
   dots,
   itemResolutions,
+  machineVariants,
   partNumbers,
   parts,
   serviceItems,
 } from '../db/schema';
 import { requireAdmin } from '../middleware/auth';
+import { serialInRange } from '../lib/serial';
 
 export const assembliesRoute = new Hono<{ Bindings: Bindings }>();
 
@@ -31,11 +33,15 @@ assembliesRoute.get('/', async (c) => {
   return c.json(rows);
 });
 
-// Full assembly: items (with canonical part + numbers), per-position resolutions (qty),
-// balloon dots, and the service/FRT items.
+// Full assembly: items (with canonical part + numbers), per-position resolutions
+// (qty + variant/serial applicability), balloon dots, and the service/FRT items.
+// Optional ?variantId= and ?serial= narrow each item's resolutions to the ones that
+// apply to that bike (items are never dropped — an empty list means "no match").
 assembliesRoute.get('/:id/full', async (c) => {
   const db = getDb(c.env);
   const id = c.req.param('id');
+  const variantIdFilter = c.req.query('variantId');
+  const serialFilter = c.req.query('serial');
 
   const assembly = await db.select().from(assemblies).where(eq(assemblies.id, id)).get();
   if (!assembly) return c.json({ error: 'not found' }, 404);
@@ -53,7 +59,10 @@ assembliesRoute.get('/:id/full', async (c) => {
     ? await db.select().from(partNumbers).where(inArray(partNumbers.partId, partIds))
     : [];
   const resolutionRows = itemIds.length
-    ? await db.select().from(itemResolutions).where(inArray(itemResolutions.assemblyItemId, itemIds))
+    ? await db
+        .select()
+        .from(itemResolutions)
+        .where(and(inArray(itemResolutions.assemblyItemId, itemIds), isNull(itemResolutions.deletedAt)))
     : [];
   const dotRows = itemIds.length
     ? await db.select().from(dots).where(inArray(dots.assemblyItemId, itemIds))
@@ -63,15 +72,33 @@ assembliesRoute.get('/:id/full', async (c) => {
     .from(serviceItems)
     .where(and(eq(serviceItems.assemblyId, id), isNull(serviceItems.deletedAt)));
 
+  const variantRows = await db
+    .select({ id: machineVariants.id, name: machineVariants.name })
+    .from(machineVariants)
+    .where(eq(machineVariants.machineId, assembly.machineId));
+  const variantNameById = new Map(variantRows.map((v) => [v.id, v.name]));
+
   const partById = new Map(partRows.map((p) => [p.id, p]));
+  const numberValueById = new Map(numberRows.map((n) => [n.id, n.value]));
   const numbersByPart = new Map<string, typeof numberRows>();
   for (const n of numberRows) {
     const arr = numbersByPart.get(n.partId) ?? [];
     arr.push(n);
     numbersByPart.set(n.partId, arr);
   }
-  const resByItem = new Map<string, typeof resolutionRows>();
-  for (const r of resolutionRows) {
+  const enrichedResolutions = resolutionRows
+    .filter((r) => {
+      if (variantIdFilter && r.variantId !== null && r.variantId !== variantIdFilter) return false;
+      if (serialFilter && !serialInRange(serialFilter, r.serialFrom, r.serialTo)) return false;
+      return true;
+    })
+    .map((r) => ({
+      ...r,
+      variantName: r.variantId ? variantNameById.get(r.variantId) ?? null : null,
+      partNumberValue: numberValueById.get(r.partNumberId) ?? null,
+    }));
+  const resByItem = new Map<string, typeof enrichedResolutions>();
+  for (const r of enrichedResolutions) {
     const arr = resByItem.get(r.assemblyItemId) ?? [];
     arr.push(r);
     resByItem.set(r.assemblyItemId, arr);

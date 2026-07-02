@@ -1,9 +1,18 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { getDb } from '../db/client';
 import type { Db } from '../db/client';
-import { partColorVariants, partNumbers, parts } from '../db/schema';
+import {
+  assemblies,
+  assemblyItems,
+  itemResolutions,
+  machines,
+  machineVariants,
+  partColorVariants,
+  partNumbers,
+  parts,
+} from '../db/schema';
 
 export const partsRoute = new Hono<{ Bindings: Bindings }>();
 
@@ -12,7 +21,89 @@ async function getPartFull(db: Db, id: string) {
   if (!part) return null;
   const numbers = await db.select().from(partNumbers).where(eq(partNumbers.partId, id));
   const colorVariants = await db.select().from(partColorVariants).where(eq(partColorVariants.partId, id));
-  return { ...part, numbers, colorVariants };
+  const placements = await getPlacements(db, numbers.map((n) => ({ id: n.id, value: n.value })));
+  return { ...part, numbers, colorVariants, placements };
+}
+
+// Where this part's numbers are used: each live diagram position, with which
+// number/variant/serial range applies there (from item_resolutions).
+async function getPlacements(db: Db, numbers: { id: string; value: string }[]) {
+  if (numbers.length === 0) return [];
+  const numberValueById = new Map(numbers.map((n) => [n.id, n.value]));
+
+  const rows = await db
+    .select({
+      assemblyItemId: itemResolutions.assemblyItemId,
+      partNumberId: itemResolutions.partNumberId,
+      qty: itemResolutions.qty,
+      variantId: itemResolutions.variantId,
+      variantName: machineVariants.name,
+      serialFrom: itemResolutions.serialFrom,
+      serialTo: itemResolutions.serialTo,
+      refNo: assemblyItems.refNo,
+      assemblyId: assemblies.id,
+      assemblyCode: assemblies.code,
+      assemblyName: assemblies.name,
+      machineId: machines.id,
+      machineBrand: machines.brand,
+      machineModel: machines.model,
+    })
+    .from(itemResolutions)
+    .innerJoin(assemblyItems, eq(assemblyItems.id, itemResolutions.assemblyItemId))
+    .innerJoin(assemblies, eq(assemblies.id, assemblyItems.assemblyId))
+    .innerJoin(machines, eq(machines.id, assemblies.machineId))
+    .leftJoin(machineVariants, eq(machineVariants.id, itemResolutions.variantId))
+    .where(
+      and(
+        inArray(itemResolutions.partNumberId, numbers.map((n) => n.id)),
+        isNull(itemResolutions.deletedAt),
+        isNull(assemblyItems.deletedAt),
+        isNull(assemblies.deletedAt),
+      ),
+    );
+
+  const byItem = new Map<string, {
+    assemblyItemId: string;
+    refNo: string;
+    assemblyId: string;
+    assemblyCode: string;
+    assemblyName: string;
+    machineId: string;
+    machine: string;
+    applicability: {
+      number: string | null;
+      qty: number;
+      variantId: string | null;
+      variantName: string | null;
+      serialFrom: string | null;
+      serialTo: string | null;
+    }[];
+  }>();
+  for (const r of rows) {
+    let placement = byItem.get(r.assemblyItemId);
+    if (!placement) {
+      placement = {
+        assemblyItemId: r.assemblyItemId,
+        refNo: r.refNo,
+        assemblyId: r.assemblyId,
+        assemblyCode: r.assemblyCode,
+        assemblyName: r.assemblyName,
+        machineId: r.machineId,
+        machine: `${r.machineBrand} ${r.machineModel}`,
+        applicability: [],
+      };
+      byItem.set(r.assemblyItemId, placement);
+    }
+    placement.applicability.push({
+      number: numberValueById.get(r.partNumberId) ?? null,
+      qty: r.qty,
+      variantId: r.variantId,
+      variantName: r.variantName,
+      serialFrom: r.serialFrom,
+      serialTo: r.serialTo,
+    });
+  }
+  return [...byItem.values()];
 }
 
 // Resolve ANY part number (oem/alternate/superseded/aftermarket) to its canonical part.

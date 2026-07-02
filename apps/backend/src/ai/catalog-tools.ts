@@ -5,7 +5,9 @@ import {
   assemblies,
   assemblyItems,
   colors,
+  itemResolutions,
   machines,
+  machineVariants,
   partColorVariants,
   partNumbers,
   parts,
@@ -111,6 +113,7 @@ async function getPart(db: Db, args: { partId?: string; number?: string }) {
     db.select().from(aliases).where(and(eq(aliases.partId, id), isNull(aliases.deletedAt))),
     db
       .select({
+        itemId: assemblyItems.id,
         refNo: assemblyItems.refNo,
         assemblyCode: assemblies.code,
         assemblyName: assemblies.name,
@@ -120,8 +123,44 @@ async function getPart(db: Db, args: { partId?: string; number?: string }) {
       .from(assemblyItems)
       .innerJoin(assemblies, eq(assemblies.id, assemblyItems.assemblyId))
       .innerJoin(machines, eq(machines.id, assemblies.machineId))
-      .where(and(eq(assemblyItems.basePartId, id), isNull(assemblyItems.deletedAt))),
+      .where(and(eq(assemblyItems.basePartId, id), isNull(assemblyItems.deletedAt), isNull(assemblies.deletedAt))),
   ]);
+
+  // Applicability per position: which number/variant/serial range applies there.
+  const numberIds = numberRows.map((n) => n.id);
+  const numberValueById = new Map(numberRows.map((n) => [n.id, n.value]));
+  const resolutionRows = numberIds.length
+    ? await db
+        .select({
+          assemblyItemId: itemResolutions.assemblyItemId,
+          partNumberId: itemResolutions.partNumberId,
+          qty: itemResolutions.qty,
+          variantName: machineVariants.name,
+          serialFrom: itemResolutions.serialFrom,
+          serialTo: itemResolutions.serialTo,
+        })
+        .from(itemResolutions)
+        .leftJoin(machineVariants, eq(machineVariants.id, itemResolutions.variantId))
+        .where(and(inArray(itemResolutions.partNumberId, numberIds), isNull(itemResolutions.deletedAt)))
+    : [];
+  const applicabilityByItem = new Map<string, {
+    number: string | null;
+    qty: number;
+    variant: string | null;
+    serialFrom: string | null;
+    serialTo: string | null;
+  }[]>();
+  for (const r of resolutionRows) {
+    const arr = applicabilityByItem.get(r.assemblyItemId) ?? [];
+    arr.push({
+      number: numberValueById.get(r.partNumberId) ?? null,
+      qty: r.qty,
+      variant: r.variantName,
+      serialFrom: r.serialFrom,
+      serialTo: r.serialTo,
+    });
+    applicabilityByItem.set(r.assemblyItemId, arr);
+  }
 
   const primaryNumber =
     numberRows.find((n) => n.isPrimary)?.value ?? numberRows[0]?.value ?? null;
@@ -144,6 +183,7 @@ async function getPart(db: Db, args: { partId?: string; number?: string }) {
       refNo: p.refNo,
       assembly: `${p.assemblyCode} ${p.assemblyName}`,
       machine: `${p.brand} ${p.model}`,
+      applicability: applicabilityByItem.get(p.itemId) ?? [],
     })),
   };
 }
@@ -167,7 +207,7 @@ export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
   {
     name: 'get_part',
     description:
-      'Get full detail for one canonical part: all interchangeable numbers (kind/brand), per-color full numbers, aliases, and the diagram positions/machines it appears on. Identify the part by `partId` (from search_parts) or by any `number` belonging to it.',
+      'Get full detail for one canonical part: all interchangeable numbers (kind/brand), per-color full numbers, aliases, and the diagram positions/machines it appears on. Each position includes `applicability`: which exact number, quantity, variant (e.g. STD/ABS) and frame-serial range (serialFrom/serialTo, null = unbounded; variant null = all variants) applies there — use it to answer "which exact number/qty for THIS bike (variant + frame serial)". Identify the part by `partId` (from search_parts) or by any `number` belonging to it.',
     input_schema: {
       type: 'object',
       properties: {

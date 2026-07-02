@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import { eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { getDb } from '../db/client';
-import { machines } from '../db/schema';
+import { machines, machineVariants } from '../db/schema';
 import { requireAdmin } from '../middleware/auth';
 
 export const machinesRoute = new Hono<{ Bindings: Bindings }>();
@@ -12,6 +12,18 @@ export const machinesRoute = new Hono<{ Bindings: Bindings }>();
 machinesRoute.get('/', async (c) => {
   const db = getDb(c.env);
   const rows = await db.select().from(machines).where(isNull(machines.deletedAt));
+  return c.json(rows);
+});
+
+// Variants (STD/ABS/...) for a machine. Usually created implicitly at ingest commit;
+// this list is the inspection surface.
+machinesRoute.get('/:id/variants', async (c) => {
+  const db = getDb(c.env);
+  const rows = await db
+    .select()
+    .from(machineVariants)
+    .where(and(eq(machineVariants.machineId, c.req.param('id')), isNull(machineVariants.deletedAt)))
+    .orderBy(asc(machineVariants.name));
   return c.json(rows);
 });
 
@@ -46,6 +58,32 @@ machinesRoute.post('/', requireAdmin, async (c) => {
       catalogDate: body.catalogDate ?? null,
       notes: body.notes ?? null,
     })
+    .returning();
+  return c.json(row, 201);
+});
+
+// Manual-fix escape hatch: variants are normally get-or-created at ingest commit.
+// Deduped case-insensitively per machine — returns the existing row with 200 if present.
+machinesRoute.post('/:id/variants', requireAdmin, async (c) => {
+  const machineId = c.req.param('id');
+  const body = await c.req.json<{ name?: string; note?: string }>().catch(() => null);
+  const name = body?.name?.trim();
+  if (!name) return c.json({ error: 'name is required' }, 400);
+
+  const db = getDb(c.env);
+  const machine = await db.select({ id: machines.id }).from(machines).where(eq(machines.id, machineId)).get();
+  if (!machine) return c.json({ error: 'machine not found' }, 404);
+
+  const existing = await db
+    .select()
+    .from(machineVariants)
+    .where(and(eq(machineVariants.machineId, machineId), isNull(machineVariants.deletedAt)));
+  const dup = existing.find((v) => v.name.trim().toLowerCase() === name.toLowerCase());
+  if (dup) return c.json(dup, 200);
+
+  const [row] = await db
+    .insert(machineVariants)
+    .values({ machineId, name, note: body?.note ?? null })
     .returning();
   return c.json(row, 201);
 });

@@ -7,6 +7,7 @@ import type {
   ExtractedPage,
   FullAssembly,
   Machine,
+  MachineVariant,
   PartFull,
 } from './types';
 
@@ -67,7 +68,15 @@ export const api = {
     }),
   listAssemblies: (machineId: string) =>
     req<Assembly[]>(`/assemblies?machineId=${encodeURIComponent(machineId)}`),
-  getAssemblyFull: (id: string) => req<FullAssembly>(`/assemblies/${id}/full`),
+  listVariants: (machineId: string) =>
+    req<MachineVariant[]>(`/machines/${encodeURIComponent(machineId)}/variants`),
+  getAssemblyFull: (id: string, filter?: { variantId?: string; serial?: string }) => {
+    const params = new URLSearchParams();
+    if (filter?.variantId) params.set('variantId', filter.variantId);
+    if (filter?.serial) params.set('serial', filter.serial);
+    const qs = params.toString();
+    return req<FullAssembly>(`/assemblies/${id}/full${qs ? `?${qs}` : ''}`);
+  },
   uploadAssemblyImage: (id: string, imageBase64: string, mediaType: string, width: number, height: number) =>
     req<{ ok: boolean; imageRef: string }>(`/assemblies/${id}/image`, {
       method: 'POST',

@@ -40,6 +40,11 @@ parts ──< part_numbers                (interchangeable numbers on one canoni
 parts ──< part_color_variants ── colors   (base + color suffix = full number)
 ```
 
+Applicability semantics: `variant_id = NULL` means the resolution applies to **all** variants; a
+NULL `serial_from`/`serial_to` is unbounded on that side. Serial comparison (see
+`apps/backend/src/lib/serial.ts`): numeric when both values are all-digits after trim, otherwise
+case-insensitive lexicographic.
+
 This one structure covers every case seen in the catalogs:
 - **Interchange** (NGK/Denso plugs): one `parts` row, two `part_numbers` (kind `alternative`).
 - **Serial cutoff**: two `item_resolutions` with different `serial_from/to`.

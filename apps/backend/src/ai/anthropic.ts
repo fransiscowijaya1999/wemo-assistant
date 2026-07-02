@@ -23,6 +23,16 @@ Rules:
   that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
   times). Use an empty array if you cannot locate it. These are best-effort estimates a human will
   fine-tune.
+- 2024-edition pages may add a "No. Seri" (frame serial range) column and split the quantity into
+  one "Jumlah" column PER VARIANT (column headers like STD, ABS). If present:
+  - Return "variantColumns": the variant column header names, verbatim and in printed order.
+  - On each part-number row, return "variantQtys": one { variant, qty } per NON-EMPTY variant cell
+    (skip blank or "-" cells — blank means the part does not apply to that variant).
+  - Return "serialFrom"/"serialTo" from the No. Seri cell, digits verbatim: a range printed as
+    "up to / s/d N" means serialTo=N; "from N" or "N onward" means serialFrom=N; "A - B" means both.
+    A ref listing several part numbers with different serial ranges is a serial split — keep each
+    number's own range on its own entry.
+- On pages WITHOUT these columns, omit variantColumns, variantQtys, serialFrom and serialTo entirely.
 - If a field is not present, omit it. Do not guess text you cannot read.`;
 
 const COLOR_SYSTEM = `You extract data from a Honda Indonesia parts-catalog COLOR INDEX page, which
