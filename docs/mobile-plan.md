@@ -216,7 +216,11 @@ convention.)
   shell is now Browse / Search / Assistant / Sync (Search is the default tab). Verified on the
   emulator. (The **Assistant** tab is a placeholder — the read-only, online-only AI chat is the next
   slice; it needs a new clerk-facing backend chat endpoint.)
-- **M4 — Visual browse:** machine → assembly → diagram with tappable dots (both directions).
+- **M4 — Visual browse:** ✅ done. The Browse tab root is now `MachineListScreen` (one row per
+  machine with its diagram count, reactive to sync) → `MachineBrowseScreen` (Engine/Frame
+  `SegmentedButton` with per-group counts over a grid of assembly cards — cached diagram thumbnail,
+  code + name, ordered by `sort_order` then the numeric part of the code so E-2 < E-10) →
+  the existing `DiagramScreen` with tappable dots. Verified on the emulator.
 - **AI assistant (dedicated tab):** ✅ done. Backend `POST /chat` is a **read-only** clerk assistant
   — model-agnostic `ChatProvider` seam (Claude, DeepSeek, or a keyless `AI_CHAT=stub`; pick via
   `CHAT_PROVIDER`) with

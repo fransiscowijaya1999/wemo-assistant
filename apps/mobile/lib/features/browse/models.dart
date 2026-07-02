@@ -1,13 +1,43 @@
 // View models for the Browse feature (flattened joins the UI renders directly).
 
-/// One row in the assemblies list.
-class AssemblyListItem {
-  const AssemblyListItem({
+/// One row in the machine list (Browse root).
+class MachineListItem {
+  const MachineListItem({
+    required this.id,
+    required this.brand,
+    required this.model,
+    required this.yearFrom,
+    required this.yearTo,
+    required this.engineCount,
+    required this.frameCount,
+  });
+
+  final String id;
+  final String brand;
+  final String model;
+  final int? yearFrom;
+  final int? yearTo;
+  final int engineCount; // engine-group assemblies
+  final int frameCount; // frame-group assemblies
+
+  String get label => '$brand $model';
+
+  String? get yearLabel {
+    if (yearFrom == null && yearTo == null) return null;
+    if (yearFrom != null && yearTo != null) {
+      return yearFrom == yearTo ? '$yearFrom' : '$yearFrom–$yearTo';
+    }
+    return '${yearFrom ?? yearTo}';
+  }
+}
+
+/// One tile in a machine's assembly grid.
+class AssemblyTile {
+  const AssemblyTile({
     required this.id,
     required this.code,
     required this.name,
     required this.groupType,
-    required this.machineLabel,
     required this.hasImage,
   });
 
@@ -15,7 +45,6 @@ class AssemblyListItem {
   final String code; // E-1 / F-13
   final String name; // Cylinder Head
   final String groupType; // engine | frame
-  final String machineLabel; // "Honda BeAT"
   final bool hasImage;
 }
 

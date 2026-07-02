@@ -9,26 +9,57 @@ class CatalogRepository {
 
   final AppDatabase db;
 
-  /// All assemblies with their machine label, reactive to sync writes.
-  Stream<List<AssemblyListItem>> watchAssemblies() {
+  /// All machines with per-group assembly counts, reactive to sync writes.
+  Stream<List<MachineListItem>> watchMachines() {
     return db
         .customSelect(
-          'SELECT a.id, a.code, a.name, a.group_type AS group_type, a.image_ref AS image_ref, '
-          'm.brand, m.model '
-          'FROM assemblies a JOIN machines m ON m.id = a.machine_id '
-          'ORDER BY m.model, a.group_type, a.code',
-          readsFrom: {db.assemblies, db.machines},
+          'SELECT m.id, m.brand, m.model, m.year_from AS year_from, m.year_to AS year_to, '
+          "SUM(CASE WHEN a.group_type = 'engine' THEN 1 ELSE 0 END) AS engine_count, "
+          "SUM(CASE WHEN a.group_type = 'frame' THEN 1 ELSE 0 END) AS frame_count "
+          'FROM machines m LEFT JOIN assemblies a ON a.machine_id = m.id '
+          'GROUP BY m.id ORDER BY m.brand, m.model',
+          readsFrom: {db.machines, db.assemblies},
         )
         .watch()
         .map(
           (rows) => rows
               .map(
-                (r) => AssemblyListItem(
+                (r) => MachineListItem(
+                  id: r.read<String>('id'),
+                  brand: r.read<String>('brand'),
+                  model: r.read<String>('model'),
+                  yearFrom: r.read<int?>('year_from'),
+                  yearTo: r.read<int?>('year_to'),
+                  engineCount: r.read<int>('engine_count'),
+                  frameCount: r.read<int>('frame_count'),
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  /// One machine's assemblies in catalog order (both groups; the UI filters).
+  /// Catalog order = sort_order when present, else the numeric part of the
+  /// code ("E-2" before "E-10", which plain text ordering gets wrong).
+  Stream<List<AssemblyTile>> watchMachineAssemblies(String machineId) {
+    return db
+        .customSelect(
+          'SELECT id, code, name, group_type AS group_type, image_ref AS image_ref '
+          'FROM assemblies WHERE machine_id = ? '
+          'ORDER BY group_type, (sort_order IS NULL), sort_order, '
+          "CAST(substr(code, instr(code, '-') + 1) AS INTEGER), code",
+          variables: [Variable<String>(machineId)],
+          readsFrom: {db.assemblies},
+        )
+        .watch()
+        .map(
+          (rows) => rows
+              .map(
+                (r) => AssemblyTile(
                   id: r.read<String>('id'),
                   code: r.read<String>('code'),
                   name: r.read<String>('name'),
                   groupType: r.read<String>('group_type'),
-                  machineLabel: '${r.read<String>('brand')} ${r.read<String>('model')}',
                   hasImage: r.read<String?>('image_ref') != null,
                 ),
               )

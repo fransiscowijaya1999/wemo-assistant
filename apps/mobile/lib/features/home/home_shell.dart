@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../assistant/assistant_screen.dart';
-import '../browse/assembly_list_screen.dart';
+import '../browse/machine_list_screen.dart';
 import '../search/search_screen.dart';
 import '../sync/sync_screen.dart';
 
@@ -21,7 +21,7 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [AssemblyListScreen(), SearchScreen(), AssistantScreen(), SyncScreen()],
+        children: const [MachineListScreen(), SearchScreen(), AssistantScreen(), SyncScreen()],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
