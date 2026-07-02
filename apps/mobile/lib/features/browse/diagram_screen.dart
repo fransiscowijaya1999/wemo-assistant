@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../core/images/image_store.dart';
 import 'data/catalog_repository.dart';
 import 'diagram_view.dart';
+import 'fitment_controller.dart';
+import 'fitment_sheet.dart';
 import 'models.dart';
 
 class DiagramScreen extends StatefulWidget {
@@ -23,11 +25,18 @@ class DiagramScreen extends StatefulWidget {
 }
 
 class _DiagramData {
-  _DiagramData({required this.meta, required this.imageFile, required this.aspectRatio, required this.dots});
+  _DiagramData({
+    required this.meta,
+    required this.imageFile,
+    required this.aspectRatio,
+    required this.dots,
+    required this.fitmentAvailable,
+  });
   final AssemblyMeta meta;
   final File? imageFile;
   final double aspectRatio;
   final List<DiagramDot> dots;
+  final bool fitmentAvailable; // machine has variants or serial-ranged resolutions
 }
 
 class _DiagramScreenState extends State<DiagramScreen> {
@@ -56,6 +65,7 @@ class _DiagramScreenState extends State<DiagramScreen> {
     final meta = await repo.assemblyMeta(widget.assemblyId);
     if (meta == null) return null;
     final dots = await repo.diagramDots(widget.assemblyId);
+    final fitmentAvailable = await repo.fitmentAvailable(meta.machineId);
     final file = await store.fileFor(widget.assemblyId);
 
     File? imageFile;
@@ -66,7 +76,13 @@ class _DiagramScreenState extends State<DiagramScreen> {
         aspect = await _decodeAspect(file) ?? 1.0;
       }
     }
-    return _DiagramData(meta: meta, imageFile: imageFile, aspectRatio: aspect, dots: dots);
+    return _DiagramData(
+      meta: meta,
+      imageFile: imageFile,
+      aspectRatio: aspect,
+      dots: dots,
+      fitmentAvailable: fitmentAvailable,
+    );
   }
 
   Future<double?> _decodeAspect(File f) async {
@@ -82,6 +98,14 @@ class _DiagramScreenState extends State<DiagramScreen> {
     }
   }
 
+  void _openFitmentSheet(_DiagramData data) {
+    showFitmentSheet(
+      context,
+      machineId: data.meta.machineId,
+      machineLabel: data.meta.machineLabel,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<_DiagramData?>(
@@ -89,11 +113,30 @@ class _DiagramScreenState extends State<DiagramScreen> {
       builder: (context, snap) {
         final data = snap.data;
         final title = data == null ? 'Diagram' : '${data.meta.code} · ${data.meta.name}';
+        final fitment = data == null
+            ? const Fitment()
+            : context.watch<FitmentController>().fitmentFor(data.meta.machineId);
         return Scaffold(
-          appBar: AppBar(title: Text(title)),
+          appBar: AppBar(
+            title: Text(title),
+            actions: [
+              if (data != null && data.fitmentAvailable)
+                IconButton(
+                  tooltip: "Customer's bike (variant / serial)",
+                  icon: fitment.isActive
+                      ? Badge(
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          smallSize: 8,
+                          child: const Icon(Icons.filter_alt),
+                        )
+                      : const Icon(Icons.filter_alt_outlined),
+                  onPressed: () => _openFitmentSheet(data),
+                ),
+            ],
+          ),
           body: switch (snap.connectionState) {
             ConnectionState.done when data == null => const _Centered('Assembly not found.'),
-            ConnectionState.done => _body(data!),
+            ConnectionState.done => _body(data!, fitment),
             _ => const Center(child: CircularProgressIndicator()),
           },
         );
@@ -101,15 +144,21 @@ class _DiagramScreenState extends State<DiagramScreen> {
     );
   }
 
-  Widget _body(_DiagramData data) {
+  Widget _body(_DiagramData data, Fitment fitment) {
     if (data.imageFile == null) {
       return _Centered(
         'No diagram image for “${data.meta.code}”.\nIt may not be uploaded yet, or sync hasn’t fetched it.',
         icon: Icons.image_not_supported_outlined,
       );
     }
+    final dimmed = <String>{
+      if (fitment.isActive)
+        for (final dot in data.dots)
+          if (!dot.appliesTo(fitment)) dot.itemId,
+    };
     return Column(
       children: [
+        if (fitment.isActive) _FitmentBanner(fitment: fitment, data: data),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(8),
@@ -118,21 +167,74 @@ class _DiagramScreenState extends State<DiagramScreen> {
               aspectRatio: data.aspectRatio,
               dots: data.dots,
               selectedItemId: _selected?.itemId,
+              dimmedItemIds: dimmed,
               onTapDot: (d) => setState(() => _selected = d),
             ),
           ),
         ),
         if (_selected != null)
-          _SelectedItemCard(dot: _selected!, onClose: () => setState(() => _selected = null)),
+          _SelectedItemCard(
+            dot: _selected!,
+            fitment: fitment,
+            onClose: () => setState(() => _selected = null),
+          ),
       ],
     );
   }
 }
 
+/// Thin strip showing the active fitment; tap to edit, x to clear.
+class _FitmentBanner extends StatelessWidget {
+  const _FitmentBanner({required this.fitment, required this.data});
+
+  final Fitment fitment;
+  final _DiagramData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.secondaryContainer,
+      child: InkWell(
+        onTap: () => showFitmentSheet(
+          context,
+          machineId: data.meta.machineId,
+          machineLabel: data.meta.machineLabel,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
+          child: Row(
+            children: [
+              Icon(Icons.filter_alt, size: 16, color: theme.colorScheme.onSecondaryContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Showing parts for ${fitment.label}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSecondaryContainer),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Clear',
+                onPressed: () =>
+                    context.read<FitmentController>().clear(data.meta.machineId),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SelectedItemCard extends StatelessWidget {
-  const _SelectedItemCard({required this.dot, required this.onClose});
+  const _SelectedItemCard({required this.dot, required this.fitment, required this.onClose});
 
   final DiagramDot dot;
+  final Fitment fitment;
   final VoidCallback onClose;
 
   @override
@@ -157,17 +259,81 @@ class _SelectedItemCard extends StatelessWidget {
                 children: [
                   Text(dot.partName ?? 'Unnamed part', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 2),
-                  Text(
-                    dot.primaryNumber ?? 'No part number',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
+                  ..._numbers(theme),
                 ],
               ),
             ),
             IconButton(icon: const Icon(Icons.close), onPressed: onClose, tooltip: 'Clear'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The position's part numbers. With resolutions we show the actual resolved
+  /// number(s) + qty + applicability; an active fitment narrows to the
+  /// applicable ones (or explains that none apply). Without resolutions, fall
+  /// back to the base part's primary number.
+  List<Widget> _numbers(ThemeData theme) {
+    if (dot.resolutions.isEmpty) {
+      return [
+        Text(
+          dot.primaryNumber ?? 'No part number',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ];
+    }
+
+    final applicable =
+        fitment.isActive ? dot.resolutions.where((r) => r.appliesTo(fitment)).toList() : dot.resolutions;
+
+    if (applicable.isEmpty) {
+      // Fitment active and nothing matches: say so, then list what it fits.
+      return [
+        Text(
+          'Not used on ${fitment.label}',
+          style: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.error, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        for (final r in dot.resolutions) _resolutionLine(theme, r, dimmed: true),
+      ];
+    }
+    return [
+      for (final r in applicable)
+        _resolutionLine(theme, r, dimmed: false, showLabel: !fitment.isActive || applicable.length > 1),
+    ];
+  }
+
+  Widget _resolutionLine(ThemeData theme, ItemResolutionView r,
+      {required bool dimmed, bool showLabel = true}) {
+    final color = dimmed ? theme.colorScheme.outline : theme.colorScheme.onSurfaceVariant;
+    final label = r.label;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: r.partNumberValue ?? 'No part number',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: dimmed ? theme.colorScheme.outline : theme.colorScheme.onSurface,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            if (r.qty != 1)
+              TextSpan(
+                text: '  ×${r.qty}',
+                style: theme.textTheme.bodySmall?.copyWith(color: color),
+              ),
+            if (showLabel && label != null)
+              TextSpan(
+                text: '  $label',
+                style: theme.textTheme.bodySmall?.copyWith(color: color),
+              ),
           ],
         ),
       ),

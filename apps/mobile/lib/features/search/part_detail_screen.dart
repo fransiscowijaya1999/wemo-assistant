@@ -97,7 +97,12 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(child: Text(pl.refNo)),
               title: Text('${pl.assemblyCode} · ${pl.assemblyName}'),
-              subtitle: Text(pl.machineLabel),
+              subtitle: Text(
+                pl.applicability == null
+                    ? pl.machineLabel
+                    : '${pl.machineLabel}\nFits: ${pl.applicability}',
+              ),
+              isThreeLine: pl.applicability != null,
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(

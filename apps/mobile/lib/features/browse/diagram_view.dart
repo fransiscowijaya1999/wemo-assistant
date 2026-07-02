@@ -19,6 +19,7 @@ class DiagramView extends StatefulWidget {
     required this.dots,
     required this.onTapDot,
     this.selectedItemId,
+    this.dimmedItemIds = const {},
   });
 
   final File image;
@@ -26,6 +27,10 @@ class DiagramView extends StatefulWidget {
   final List<DiagramDot> dots;
   final ValueChanged<DiagramDot> onTapDot;
   final String? selectedItemId;
+
+  /// Positions greyed out because they don't apply to the active fitment.
+  /// Still tappable, so the clerk can see why.
+  final Set<String> dimmedItemIds;
 
   @override
   State<DiagramView> createState() => _DiagramViewState();
@@ -101,6 +106,7 @@ class _DiagramViewState extends State<DiagramView> {
                                   child: _DotMarker(
                                     label: dot.refNo,
                                     selected: dot.itemId == widget.selectedItemId,
+                                    dimmed: widget.dimmedItemIds.contains(dot.itemId),
                                     onTap: () => widget.onTapDot(dot),
                                   ),
                                 ),
@@ -122,18 +128,28 @@ class _DiagramViewState extends State<DiagramView> {
 }
 
 class _DotMarker extends StatelessWidget {
-  const _DotMarker({required this.label, required this.selected, required this.onTap});
+  const _DotMarker({
+    required this.label,
+    required this.selected,
+    required this.dimmed,
+    required this.onTap,
+  });
 
   static const double radius = 14;
 
   final String label;
   final bool selected;
+  final bool dimmed;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final bg = selected ? scheme.error : scheme.primary;
+    final bg = selected
+        ? scheme.error
+        : dimmed
+            ? scheme.outline
+            : scheme.primary;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -142,7 +158,7 @@ class _DotMarker extends StatelessWidget {
         height: radius * 2,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: bg.withValues(alpha: 0.9),
+          color: bg.withValues(alpha: dimmed && !selected ? 0.55 : 0.9),
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 2),
           boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 2, offset: Offset(0, 1))],

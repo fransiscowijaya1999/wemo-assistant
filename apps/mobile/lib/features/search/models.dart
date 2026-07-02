@@ -55,6 +55,7 @@ class PartPlacement {
     required this.assemblyCode,
     required this.assemblyName,
     required this.machineLabel,
+    this.applicability,
   });
 
   final String itemId;
@@ -63,6 +64,10 @@ class PartPlacement {
   final String assemblyCode;
   final String assemblyName;
   final String machineLabel;
+
+  /// "CBS, ABS" / "s/n 1000001–…" when this part only fits some variants or
+  /// serials at this position; null when unrestricted.
+  final String? applicability;
 }
 
 class PartDetail {

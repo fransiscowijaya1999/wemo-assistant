@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../core/images/image_store.dart';
 import 'data/catalog_repository.dart';
 import 'diagram_screen.dart';
+import 'fitment_controller.dart';
+import 'fitment_sheet.dart';
 import 'models.dart';
 
 /// One machine's diagrams: Engine/Frame toggle over a thumbnail grid.
@@ -23,6 +25,8 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
   late String _group = widget.machine.engineCount > 0 || widget.machine.frameCount == 0
       ? 'engine'
       : 'frame';
+  late final Future<bool> _fitmentAvailable =
+      context.read<CatalogRepository>().fitmentAvailable(widget.machine.id);
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +60,7 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
                   onSelectionChanged: (s) => setState(() => _group = s.first),
                 ),
               ),
+              _fitmentChip(),
               Expanded(
                 child: tiles.isEmpty
                     ? Center(child: Text('No $_group diagrams.'))
@@ -75,6 +80,43 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
           );
         },
       ),
+    );
+  }
+
+  /// "Customer's bike" chip — only when the machine has variants or
+  /// serial-ranged resolutions to filter by.
+  Widget _fitmentChip() {
+    return FutureBuilder<bool>(
+      future: _fitmentAvailable,
+      builder: (context, snap) {
+        if (snap.data != true) return const SizedBox.shrink();
+        final fitment = context.watch<FitmentController>().fitmentFor(widget.machine.id);
+        void open() => showFitmentSheet(
+              context,
+              machineId: widget.machine.id,
+              machineLabel: widget.machine.label,
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: fitment.isActive
+                ? InputChip(
+                    avatar: const Icon(Icons.filter_alt, size: 18),
+                    label: Text(fitment.label),
+                    onPressed: open,
+                    onDeleted: () =>
+                        context.read<FitmentController>().clear(widget.machine.id),
+                    deleteButtonTooltipMessage: 'Clear',
+                  )
+                : ActionChip(
+                    avatar: const Icon(Icons.tune, size: 18),
+                    label: const Text("Customer's bike: any variant / serial"),
+                    onPressed: open,
+                  ),
+          ),
+        );
+      },
     );
   }
 }

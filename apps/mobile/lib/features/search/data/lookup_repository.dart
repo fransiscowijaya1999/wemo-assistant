@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/db/app_database.dart';
+import '../../../core/util/serial.dart';
 import '../models.dart';
 
 /// Offline lookup over the local replica — the core clerk workflow. Any
@@ -81,6 +82,37 @@ class LookupRepository {
       readsFrom: {db.assemblyItems, db.assemblies, db.machines},
     ).get();
 
+    // Per placement, the variant/serial restrictions under which one of THIS
+    // part's numbers is the resolution. An unrestricted resolution means the
+    // part fits everything there, so no label.
+    final applicabilityRows = await db.customSelect(
+      'SELECT ir.assembly_item_id AS item_id, ir.variant_id, mv.name AS variant_name, '
+      'ir.serial_from, ir.serial_to '
+      'FROM item_resolutions ir '
+      'JOIN part_numbers pn ON pn.id = ir.part_number_id '
+      'LEFT JOIN machine_variants mv ON mv.id = ir.variant_id '
+      'WHERE pn.part_id = ?',
+      variables: [Variable<String>(partId)],
+      readsFrom: {db.itemResolutions, db.partNumbers, db.machineVariants},
+    ).get();
+    final applicabilityByItem = <String, Set<String>?>{};
+    for (final r in applicabilityRows) {
+      final itemId = r.read<String>('item_id');
+      if (applicabilityByItem.containsKey(itemId) && applicabilityByItem[itemId] == null) {
+        continue; // already known unrestricted
+      }
+      final label = applicabilityLabel(
+        variantName: r.read<String?>('variant_name'),
+        serialFrom: r.read<String?>('serial_from'),
+        serialTo: r.read<String?>('serial_to'),
+      );
+      if (label == null) {
+        applicabilityByItem[itemId] = null; // unrestricted wins
+      } else {
+        (applicabilityByItem[itemId] ??= <String>{}).add(label);
+      }
+    }
+
     return PartDetail(
       id: part.id,
       name: part.nameNormalized ?? part.nameRaw,
@@ -100,18 +132,19 @@ class LookupRepository {
           )
           .toList(),
       aliases: aliasRows.map((a) => a.term).toList(),
-      placements: placementRows
-          .map(
-            (r) => PartPlacement(
-              itemId: r.read<String>('item_id'),
-              refNo: r.read<String>('ref_no'),
-              assemblyId: r.read<String>('assembly_id'),
-              assemblyCode: r.read<String>('code'),
-              assemblyName: r.read<String>('name'),
-              machineLabel: '${r.read<String>('brand')} ${r.read<String>('model')}',
-            ),
-          )
-          .toList(),
+      placements: placementRows.map((r) {
+        final itemId = r.read<String>('item_id');
+        final labels = applicabilityByItem[itemId];
+        return PartPlacement(
+          itemId: itemId,
+          refNo: r.read<String>('ref_no'),
+          assemblyId: r.read<String>('assembly_id'),
+          assemblyCode: r.read<String>('code'),
+          assemblyName: r.read<String>('name'),
+          machineLabel: '${r.read<String>('brand')} ${r.read<String>('model')}',
+          applicability: (labels == null || labels.isEmpty) ? null : labels.join(', '),
+        );
+      }).toList(),
     );
   }
 }
