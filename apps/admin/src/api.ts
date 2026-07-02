@@ -96,6 +96,8 @@ export const api = {
   getPart: (id: string) => req<PartFull>(`/parts/${encodeURIComponent(id)}`),
   checkAuth: () => req<{ ok: boolean }>('/auth/check', { admin: true }),
   getAiSettings: () => req<AiSettings>('/settings/ai', { admin: true }),
-  saveAiSettings: (s: Partial<Pick<AiSettings, 'chatProvider' | 'chatModel' | 'anthropicKey' | 'deepseekKey'>>) =>
+  saveAiSettings: (
+    s: Partial<Pick<AiSettings, 'chatProvider' | 'chatModel' | 'visionModel' | 'anthropicKey' | 'deepseekKey'>>,
+  ) =>
     req<AiSettings>('/settings/ai', { method: 'PUT', admin: true, body: s }),
 };

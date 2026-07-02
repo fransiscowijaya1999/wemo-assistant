@@ -15,7 +15,9 @@ export function getVisionProvider(cfg: AiConfig): VisionExtractionProvider {
   if (!cfg.anthropicKey) {
     throw new Error('Anthropic API key is not configured (Settings → AI provider, or ANTHROPIC_API_KEY)');
   }
-  return createAnthropicVisionProvider(cfg.anthropicKey);
+  return cfg.visionModel
+    ? createAnthropicVisionProvider(cfg.anthropicKey, cfg.visionModel)
+    : createAnthropicVisionProvider(cfg.anthropicKey);
 }
 
 /**

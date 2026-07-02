@@ -52,9 +52,11 @@ Rules:
 - Skip empty cells and cells shown as "-".
 - If a field is not present, omit it. Do not guess.`;
 
+export const DEFAULT_VISION_MODEL = 'claude-opus-4-8';
+
 export function createAnthropicVisionProvider(
   apiKey: string,
-  model = 'claude-opus-4-8',
+  model = DEFAULT_VISION_MODEL,
 ): VisionExtractionProvider {
   const client = new Anthropic({ apiKey });
   return {

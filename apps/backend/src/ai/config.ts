@@ -12,6 +12,7 @@ export type AiConfig = {
   /** 'auto' | 'anthropic' | 'deepseek' | 'stub' */
   chatProvider: string;
   chatModel?: string;
+  visionModel?: string;
   anthropicKey?: string;
   deepseekKey?: string;
 };
@@ -19,6 +20,7 @@ export type AiConfig = {
 export const AI_SETTING_KEYS = {
   chatProvider: 'ai.chat_provider',
   chatModel: 'ai.chat_model',
+  visionModel: 'ai.vision_model',
   anthropicKey: 'ai.anthropic_api_key',
   deepseekKey: 'ai.deepseek_api_key',
 } as const;
@@ -35,6 +37,7 @@ export async function resolveAiConfig(db: Db, env: Bindings): Promise<AiConfig> 
       pick(AI_SETTING_KEYS.chatProvider, env.AI_CHAT === 'stub' ? 'stub' : env.CHAT_PROVIDER) ?? 'auto'
     ).toLowerCase(),
     chatModel: pick(AI_SETTING_KEYS.chatModel, env.CHAT_MODEL),
+    visionModel: pick(AI_SETTING_KEYS.visionModel, env.VISION_MODEL),
     anthropicKey: pick(AI_SETTING_KEYS.anthropicKey, env.ANTHROPIC_API_KEY),
     deepseekKey: pick(AI_SETTING_KEYS.deepseekKey, env.DEEPSEEK_API_KEY),
   };

@@ -47,6 +47,8 @@ export type SearchResult = { partId: string; name: string; primaryNumber: string
 export type AiSettings = {
   chatProvider: string;
   chatModel: string;
+  visionModel: string;
+  visionModelEffective: string;
   anthropicKey: string;
   deepseekKey: string;
   activeChatProvider: 'anthropic' | 'deepseek' | 'stub' | null;

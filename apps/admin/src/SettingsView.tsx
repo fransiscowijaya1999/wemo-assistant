@@ -48,6 +48,7 @@ function AiProviderCard() {
       const next = await api.saveAiSettings({
         chatProvider: ai.chatProvider,
         chatModel: ai.chatModel,
+        visionModel: ai.visionModel,
         anthropicKey: ai.anthropicKey,
         deepseekKey: ai.deepseekKey,
       });
@@ -83,7 +84,7 @@ function AiProviderCard() {
                 chat: {ai.activeChatProvider ?? 'not configured'}
               </Badge>
               <Badge variant="light" color={ai.visionConfigured ? 'green' : 'red'}>
-                extraction: {ai.visionConfigured ? 'configured (Anthropic)' : 'needs Anthropic key'}
+                extraction: {ai.visionConfigured ? ai.visionModelEffective : 'needs Anthropic key'}
               </Badge>
             </Group>
             <Select
@@ -111,6 +112,18 @@ function AiProviderCard() {
               placeholder="e.g. deepseek-chat"
               value={ai.chatModel}
               onChange={(e) => setAi({ ...ai, chatModel: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Extraction model (Anthropic only)"
+              description="Catalog-page extraction always runs on Anthropic — DeepSeek's API cannot read images. Must be a claude-* model; empty = default."
+              placeholder="default: claude-opus-4-8"
+              value={ai.visionModel}
+              onChange={(e) => setAi({ ...ai, visionModel: e.currentTarget.value })}
+              error={
+                ai.visionModel && !ai.visionModel.toLowerCase().startsWith('claude')
+                  ? 'Not an Anthropic model — extraction would fail'
+                  : undefined
+              }
             />
             <Group>
               <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={saving}>

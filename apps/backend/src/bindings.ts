@@ -11,6 +11,8 @@ export type Bindings = {
   CHAT_PROVIDER?: string;
   /** Optional chat model override (default: claude-opus-4-8 for Anthropic, deepseek-chat for DeepSeek). */
   CHAT_MODEL?: string;
+  /** Optional vision/extraction model override (default: claude-opus-4-8). */
+  VISION_MODEL?: string;
   /** Set to 'stub' to run the clerk assistant without an API key (local dev/testing). */
   AI_CHAT?: string;
 };
