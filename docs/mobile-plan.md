@@ -220,7 +220,10 @@ convention.)
   machine with its diagram count, reactive to sync) → `MachineBrowseScreen` (Engine/Frame
   `SegmentedButton` with per-group counts over a grid of assembly cards — cached diagram thumbnail,
   code + name, ordered by `sort_order` then the numeric part of the code so E-2 < E-10) →
-  the existing `DiagramScreen` with tappable dots. Verified on the emulator.
+  the existing `DiagramScreen` with tappable dots. Verified on the emulator. Zoom: pinch or
+  double-tap (zooms 3× about the tapped spot; double-tap again resets); dots are inverse-scaled to
+  keep a constant screen size, so zooming into a clump spreads the dots apart instead of enlarging
+  them.
 - **AI assistant (dedicated tab):** ✅ done. Backend `POST /chat` is a **read-only** clerk assistant
   — model-agnostic `ChatProvider` seam (Claude, DeepSeek, or a keyless `AI_CHAT=stub`; pick via
   `CHAT_PROVIDER`) with
