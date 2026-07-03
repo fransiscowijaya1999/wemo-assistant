@@ -53,6 +53,8 @@ class WemoClerkApp extends StatelessWidget {
         title: 'Wemo Clerk',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: ThemeMode.system,
         home: const HomeShell(),
       ),
     );
