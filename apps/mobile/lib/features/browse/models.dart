@@ -148,6 +148,7 @@ class DiagramDot {
     required this.y,
     required this.partName,
     required this.primaryNumber,
+    this.basePartId,
     this.resolutions = const [],
   });
 
@@ -157,6 +158,7 @@ class DiagramDot {
   final double y;
   final String? partName;
   final String? primaryNumber;
+  final String? basePartId; // canonical part, for jumping to part detail
 
   /// This position's item_resolutions (unfiltered — the UI applies the
   /// fitment). Empty when the position has no resolution rows.

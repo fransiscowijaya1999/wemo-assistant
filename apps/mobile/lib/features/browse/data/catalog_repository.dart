@@ -67,6 +67,19 @@ class CatalogRepository {
         );
   }
 
+  /// The machine's assembly ids in the same catalog order as the browse grid —
+  /// for prev/next flipping inside the diagram screen.
+  Future<List<String>> assemblyOrder(String machineId) async {
+    final rows = await db.customSelect(
+      'SELECT id FROM assemblies WHERE machine_id = ? '
+      'ORDER BY group_type, (sort_order IS NULL), sort_order, '
+      "CAST(substr(code, instr(code, '-') + 1) AS INTEGER), code",
+      variables: [Variable<String>(machineId)],
+      readsFrom: {db.assemblies},
+    ).get();
+    return [for (final r in rows) r.read<String>('id')];
+  }
+
   Future<AssemblyMeta?> assemblyMeta(String id) async {
     final a = await (db.select(db.assemblies)..where((t) => t.id.equals(id))).getSingleOrNull();
     if (a == null) return null;
@@ -114,7 +127,7 @@ class CatalogRepository {
   /// applicability, unfiltered — the UI applies the fitment). One row per dot.
   Future<List<DiagramDot>> diagramDots(String assemblyId) async {
     final rows = await db.customSelect(
-      'SELECT d.x, d.y, ai.ref_no AS ref_no, ai.id AS item_id, '
+      'SELECT d.x, d.y, ai.ref_no AS ref_no, ai.id AS item_id, ai.base_part_id AS base_part_id, '
       'COALESCE(p.name_normalized, p.name_raw) AS part_name, '
       '(SELECT pn.value FROM part_numbers pn '
       ' WHERE pn.part_id = ai.base_part_id AND pn.is_primary = 1 LIMIT 1) AS primary_number '
@@ -161,6 +174,7 @@ class CatalogRepository {
             y: r.read<double>('y'),
             partName: r.read<String?>('part_name'),
             primaryNumber: r.read<String?>('primary_number'),
+            basePartId: r.read<String?>('base_part_id'),
             resolutions: resolutionsByItem[r.read<String>('item_id')] ?? const [],
           ),
         )

@@ -11,6 +11,9 @@ import 'models.dart';
 /// spreads them apart instead of blowing each one up. Tapping a dot (or a row
 /// elsewhere) drives [selectedItemId] — every dot of the selected position is
 /// highlighted.
+///
+/// [focusDot]/[focusTick]: when the tick changes, the view zooms in on that
+/// dot (used by the parts list and the arrive-from-part-detail highlight).
 class DiagramView extends StatefulWidget {
   const DiagramView({
     super.key,
@@ -20,6 +23,8 @@ class DiagramView extends StatefulWidget {
     required this.onTapDot,
     this.selectedItemId,
     this.dimmedItemIds = const {},
+    this.focusDot,
+    this.focusTick = 0,
   });
 
   final File image;
@@ -32,6 +37,9 @@ class DiagramView extends StatefulWidget {
   /// Still tappable, so the clerk can see why.
   final Set<String> dimmedItemIds;
 
+  final DiagramDot? focusDot;
+  final int focusTick;
+
   @override
   State<DiagramView> createState() => _DiagramViewState();
 }
@@ -39,8 +47,10 @@ class DiagramView extends StatefulWidget {
 class _DiagramViewState extends State<DiagramView> {
   final _transform = TransformationController();
   Offset _doubleTapLocal = Offset.zero;
+  int _handledFocusTick = 0;
 
   static const double _doubleTapScale = 3;
+  static const double _focusScale = 2.5;
   static const double _maxScale = 8;
 
   @override
@@ -62,6 +72,17 @@ class _DiagramViewState extends State<DiagramView> {
       ..scaleByDouble(_doubleTapScale, _doubleTapScale, _doubleTapScale, 1);
   }
 
+  /// Center [dot] in the (w×h) viewport at [_focusScale], clamped so the view
+  /// never pans past the image edges.
+  void _focusOn(DiagramDot dot, double w, double h) {
+    const s = _focusScale;
+    final tx = (w / 2 - dot.x * w * s).clamp(w - w * s, 0.0);
+    final ty = (h / 2 - dot.y * h * s).clamp(h - h * s, 0.0);
+    _transform.value = Matrix4.identity()
+      ..translateByDouble(tx, ty, 0, 1)
+      ..scaleByDouble(s, s, s, 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -72,6 +93,16 @@ class _DiagramViewState extends State<DiagramView> {
         if (constraints.maxHeight.isFinite && h > constraints.maxHeight) {
           h = constraints.maxHeight;
           w = h * widget.aspectRatio;
+        }
+
+        if (widget.focusTick != _handledFocusTick) {
+          _handledFocusTick = widget.focusTick;
+          final dot = widget.focusDot;
+          if (dot != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _focusOn(dot, w, h);
+            });
+          }
         }
 
         return Center(
@@ -99,8 +130,8 @@ class _DiagramViewState extends State<DiagramView> {
                           children: [
                             for (final dot in widget.dots)
                               Positioned(
-                                left: dot.x * w - _DotMarker.radius,
-                                top: dot.y * h - _DotMarker.radius,
+                                left: dot.x * w - _DotMarker.hitRadius,
+                                top: dot.y * h - _DotMarker.hitRadius,
                                 child: Transform.scale(
                                   scale: 1 / zoom,
                                   child: _DotMarker(
@@ -137,6 +168,9 @@ class _DotMarker extends StatelessWidget {
 
   static const double radius = 14;
 
+  /// Tappable radius — larger than the visual dot so shop fingers land it.
+  static const double hitRadius = 22;
+
   final String label;
   final bool selected;
   final bool dimmed;
@@ -154,22 +188,41 @@ class _DotMarker extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: radius * 2,
-        height: radius * 2,
+        width: hitRadius * 2,
+        height: hitRadius * 2,
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg.withValues(alpha: dimmed && !selected ? 0.55 : 0.9),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 2, offset: Offset(0, 1))],
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.clip,
-          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+        color: Colors.transparent,
+        child: Container(
+          width: radius * 2,
+          height: radius * 2,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg.withValues(alpha: dimmed && !selected ? 0.55 : 0.9),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [
+              BoxShadow(color: Colors.black45, blurRadius: 2, offset: Offset(0, 1))
+            ],
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Sort helper: balloon refs are usually numeric ("1", "12"), sometimes not
+/// ("B1") — numeric first in value order, then the rest alphabetically.
+int compareRefNo(String a, String b) {
+  final na = int.tryParse(a);
+  final nb = int.tryParse(b);
+  if (na != null && nb != null) return na.compareTo(nb);
+  if (na != null) return -1;
+  if (nb != null) return 1;
+  return a.compareTo(b);
 }

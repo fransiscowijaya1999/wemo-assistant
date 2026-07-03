@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/images/image_store.dart';
+import '../search/part_detail_screen.dart';
 import 'data/catalog_repository.dart';
 import 'diagram_view.dart';
 import 'fitment_controller.dart';
@@ -17,7 +18,7 @@ class DiagramScreen extends StatefulWidget {
   final String assemblyId;
 
   /// When set (e.g. arriving from part detail), the matching position's dots
-  /// start highlighted and its part card is shown.
+  /// start highlighted + zoomed-to and its part card is shown.
   final String? highlightItemId;
 
   @override
@@ -31,21 +32,27 @@ class _DiagramData {
     required this.aspectRatio,
     required this.dots,
     required this.fitmentAvailable,
+    required this.order,
   });
   final AssemblyMeta meta;
   final File? imageFile;
   final double aspectRatio;
   final List<DiagramDot> dots;
   final bool fitmentAvailable; // machine has variants or serial-ranged resolutions
+  final List<String> order; // machine's assembly ids in grid order, for prev/next
 }
 
 class _DiagramScreenState extends State<DiagramScreen> {
-  late final Future<_DiagramData?> _future;
+  late String _assemblyId;
+  late Future<_DiagramData?> _future;
   DiagramDot? _selected;
+  DiagramDot? _focusDot;
+  int _focusTick = 0;
 
   @override
   void initState() {
     super.initState();
+    _assemblyId = widget.assemblyId;
     // Capture providers before the async gaps.
     _future = _load(context.read<CatalogRepository>(), context.read<ImageStore>());
     if (widget.highlightItemId != null) {
@@ -53,7 +60,7 @@ class _DiagramScreenState extends State<DiagramScreen> {
         if (!mounted || data == null) return;
         for (final dot in data.dots) {
           if (dot.itemId == widget.highlightItemId) {
-            setState(() => _selected = dot);
+            _select(dot, focus: true);
             break;
           }
         }
@@ -62,11 +69,12 @@ class _DiagramScreenState extends State<DiagramScreen> {
   }
 
   Future<_DiagramData?> _load(CatalogRepository repo, ImageStore store) async {
-    final meta = await repo.assemblyMeta(widget.assemblyId);
+    final meta = await repo.assemblyMeta(_assemblyId);
     if (meta == null) return null;
-    final dots = await repo.diagramDots(widget.assemblyId);
+    final dots = await repo.diagramDots(_assemblyId);
     final fitmentAvailable = await repo.fitmentAvailable(meta.machineId);
-    final file = await store.fileFor(widget.assemblyId);
+    final order = await repo.assemblyOrder(meta.machineId);
+    final file = await store.fileFor(_assemblyId);
 
     File? imageFile;
     var aspect = meta.aspectRatio ?? 1.0;
@@ -82,6 +90,7 @@ class _DiagramScreenState extends State<DiagramScreen> {
       aspectRatio: aspect,
       dots: dots,
       fitmentAvailable: fitmentAvailable,
+      order: order,
     );
   }
 
@@ -98,12 +107,101 @@ class _DiagramScreenState extends State<DiagramScreen> {
     }
   }
 
+  void _select(DiagramDot dot, {bool focus = false}) {
+    setState(() {
+      _selected = dot;
+      if (focus) {
+        _focusDot = dot;
+        _focusTick++;
+      }
+    });
+  }
+
+  void _goTo(String assemblyId) {
+    setState(() {
+      _assemblyId = assemblyId;
+      _selected = null;
+      _focusDot = null;
+      _future = _load(context.read<CatalogRepository>(), context.read<ImageStore>());
+    });
+  }
+
   void _openFitmentSheet(_DiagramData data) {
     showFitmentSheet(
       context,
       machineId: data.meta.machineId,
       machineLabel: data.meta.machineLabel,
     );
+  }
+
+  void _openPartsList(_DiagramData data, Fitment fitment) {
+    // One row per position (a position can own several balloons of one ref).
+    final seen = <String>{};
+    final items = [
+      for (final dot in data.dots)
+        if (seen.add(dot.itemId)) dot,
+    ]..sort((a, b) => compareRefNo(a.refNo, b.refNo));
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.55,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => ListView.builder(
+          controller: scrollController,
+          itemCount: items.length,
+          itemBuilder: (context, i) {
+            final dot = items[i];
+            final dimmed = fitment.isActive && !dot.appliesTo(fitment);
+            final theme = Theme.of(context);
+            // Dimmed (not-for-this-fitment) rows stay tappable so the clerk
+            // can still inspect them.
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundColor: dot.itemId == _selected?.itemId
+                    ? theme.colorScheme.error
+                    : dimmed
+                        ? theme.colorScheme.outline
+                        : theme.colorScheme.primary,
+                foregroundColor: Colors.white,
+                child: Text(dot.refNo, style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              title: Text(
+                dot.partName ?? 'Unnamed part',
+                style: dimmed ? TextStyle(color: theme.colorScheme.outline) : null,
+              ),
+              subtitle: Text(
+                _numbersSummary(dot, fitment),
+                style: dimmed ? TextStyle(color: theme.colorScheme.outline) : null,
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _select(dot, focus: true);
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Short subtitle for a parts-list row: the resolved number(s) that apply to
+  /// the fitment (or the primary number when the position has no resolutions).
+  String _numbersSummary(DiagramDot dot, Fitment fitment) {
+    if (dot.resolutions.isEmpty) return dot.primaryNumber ?? 'No part number';
+    final applicable = fitment.isActive
+        ? dot.resolutions.where((r) => r.appliesTo(fitment)).toList()
+        : dot.resolutions;
+    if (applicable.isEmpty) return 'Not used on ${fitment.label}';
+    final values = {
+      for (final r in applicable)
+        if (r.partNumberValue != null) r.partNumberValue!,
+    };
+    if (values.isEmpty) return 'No part number';
+    return values.join(', ');
   }
 
   @override
@@ -120,6 +218,12 @@ class _DiagramScreenState extends State<DiagramScreen> {
           appBar: AppBar(
             title: Text(title),
             actions: [
+              if (data != null && data.dots.isNotEmpty)
+                IconButton(
+                  tooltip: 'Parts list',
+                  icon: const Icon(Icons.format_list_numbered),
+                  onPressed: () => _openPartsList(data, fitment),
+                ),
               if (data != null && data.fitmentAvailable)
                 IconButton(
                   tooltip: "Customer's bike (variant / serial)",
@@ -145,12 +249,6 @@ class _DiagramScreenState extends State<DiagramScreen> {
   }
 
   Widget _body(_DiagramData data, Fitment fitment) {
-    if (data.imageFile == null) {
-      return _Centered(
-        'No diagram image for “${data.meta.code}”.\nIt may not be uploaded yet, or sync hasn’t fetched it.',
-        icon: Icons.image_not_supported_outlined,
-      );
-    }
     final dimmed = <String>{
       if (fitment.isActive)
         for (final dot in data.dots)
@@ -160,25 +258,87 @@ class _DiagramScreenState extends State<DiagramScreen> {
       children: [
         if (fitment.isActive) _FitmentBanner(fitment: fitment, data: data),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: DiagramView(
-              image: data.imageFile!,
-              aspectRatio: data.aspectRatio,
-              dots: data.dots,
-              selectedItemId: _selected?.itemId,
-              dimmedItemIds: dimmed,
-              onTapDot: (d) => setState(() => _selected = d),
-            ),
-          ),
+          child: data.imageFile == null
+              ? _Centered(
+                  'No diagram image for “${data.meta.code}”.\nIt may not be uploaded yet, or sync hasn’t fetched it.',
+                  icon: Icons.image_not_supported_outlined,
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: DiagramView(
+                    key: ValueKey(_assemblyId),
+                    image: data.imageFile!,
+                    aspectRatio: data.aspectRatio,
+                    dots: data.dots,
+                    selectedItemId: _selected?.itemId,
+                    dimmedItemIds: dimmed,
+                    focusDot: _focusDot,
+                    focusTick: _focusTick,
+                    onTapDot: (d) => _select(d),
+                  ),
+                ),
         ),
         if (_selected != null)
           _SelectedItemCard(
             dot: _selected!,
             fitment: fitment,
             onClose: () => setState(() => _selected = null),
-          ),
+            onOpenPart: _selected!.basePartId == null
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PartDetailScreen(partId: _selected!.basePartId!),
+                      ),
+                    ),
+          )
+        else
+          _PrevNextStrip(data: data, onGo: _goTo),
       ],
+    );
+  }
+}
+
+/// Thin bottom strip: previous / next assembly in catalog order. Hidden while
+/// a part card is open (the card takes its place).
+class _PrevNextStrip extends StatelessWidget {
+  const _PrevNextStrip({required this.data, required this.onGo});
+
+  final _DiagramData data;
+  final ValueChanged<String> onGo;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = data.order;
+    final index = order.indexOf(data.meta.id);
+    if (order.length < 2 || index < 0) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Previous diagram',
+              icon: const Icon(Icons.chevron_left),
+              onPressed: index > 0 ? () => onGo(order[index - 1]) : null,
+            ),
+            Expanded(
+              child: Text(
+                '${index + 1} / ${order.length}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Next diagram',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: index < order.length - 1 ? () => onGo(order[index + 1]) : null,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -231,40 +391,60 @@ class _FitmentBanner extends StatelessWidget {
 }
 
 class _SelectedItemCard extends StatelessWidget {
-  const _SelectedItemCard({required this.dot, required this.fitment, required this.onClose});
+  const _SelectedItemCard({
+    required this.dot,
+    required this.fitment,
+    required this.onClose,
+    this.onOpenPart,
+  });
 
   final DiagramDot dot;
   final Fitment fitment;
   final VoidCallback onClose;
+
+  /// Opens the canonical part's detail (all numbers, colors, aliases). Null
+  /// when the position has no linked part.
+  final VoidCallback? onOpenPart;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
       elevation: 8,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: theme.colorScheme.error,
-              foregroundColor: Colors.white,
-              child: Text(dot.refNo, style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(dot.partName ?? 'Unnamed part', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                  ..._numbers(theme),
-                ],
+      child: InkWell(
+        onTap: onOpenPart,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: Colors.white,
+                child: Text(dot.refNo, style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
-            ),
-            IconButton(icon: const Icon(Icons.close), onPressed: onClose, tooltip: 'Clear'),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dot.partName ?? 'Unnamed part', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    ..._numbers(theme),
+                    if (onOpenPart != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Tap for full detail',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.primary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(icon: const Icon(Icons.close), onPressed: onClose, tooltip: 'Clear'),
+            ],
+          ),
         ),
       ),
     );
