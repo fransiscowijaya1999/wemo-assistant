@@ -56,6 +56,14 @@ Rules:
 
 export const DEFAULT_VISION_MODEL = 'claude-opus-4-8';
 
+// Adaptive thinking exists on the 4.6+ Opus/Sonnet/Fable models; Haiku 4.5 (and
+// older pre-4.6 models) reject `thinking: {type: 'adaptive'}` with a 400, so for
+// those we omit the thinking param entirely (extraction is perception-heavy, not
+// reasoning-heavy — dots/bbox are best-effort and human-tuned anyway).
+function thinkingFor(model: string): { thinking: { type: 'adaptive' } } | Record<string, never> {
+  return /haiku|-4-5\b|-4-5-/.test(model) ? {} : { thinking: { type: 'adaptive' } };
+}
+
 // A page extraction can legitimately generate for several minutes (adaptive thinking
 // on a dense or unusual page). A non-streaming call only receives HTTP headers once
 // generation FINISHES server-side, so long pages died on the request timeout no matter
@@ -93,7 +101,7 @@ export function createAnthropicVisionProvider(
         {
           model,
           max_tokens: 16000,
-          thinking: { type: 'adaptive' },
+          ...thinkingFor(model),
           system: SYSTEM,
           messages: [
             {
@@ -119,7 +127,7 @@ export function createAnthropicVisionProvider(
         {
           model,
           max_tokens: 16000,
-          thinking: { type: 'adaptive' },
+          ...thinkingFor(model),
           system: COLOR_SYSTEM,
           messages: [
             {
