@@ -9,6 +9,7 @@ import 'package:wemo_clerk/core/images/image_store.dart';
 import 'package:wemo_clerk/core/settings/app_settings.dart';
 import 'package:wemo_clerk/features/home/home_shell.dart';
 import 'package:wemo_clerk/features/search/part_detail_screen.dart';
+import 'package:wemo_clerk/features/search/recent_parts_store.dart';
 import 'package:wemo_clerk/features/sync/sync_controller.dart';
 import 'package:wemo_clerk/features/sync/sync_screen.dart';
 
@@ -35,7 +36,12 @@ void main() {
     final db = AppDatabase();
     final imageStore = ImageStore();
 
-    await tester.pumpWidget(WemoClerkApp(db: db, settings: settings, imageStore: imageStore));
+    await tester.pumpWidget(WemoClerkApp(
+      db: db,
+      settings: settings,
+      imageStore: imageStore,
+      recentParts: RecentPartsStore(prefs),
+    ));
     await tester.pumpAndSettle();
 
     // --- Sync tab: force full sync -----------------------------------------

@@ -5,6 +5,7 @@ import 'app.dart';
 import 'core/db/app_database.dart';
 import 'core/images/image_store.dart';
 import 'core/settings/app_settings.dart';
+import 'features/search/recent_parts_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,5 +13,6 @@ Future<void> main() async {
   final settings = AppSettings(prefs);
   final db = AppDatabase();
   final imageStore = ImageStore();
-  runApp(WemoClerkApp(db: db, settings: settings, imageStore: imageStore));
+  final recentParts = RecentPartsStore(prefs);
+  runApp(WemoClerkApp(db: db, settings: settings, imageStore: imageStore, recentParts: recentParts));
 }

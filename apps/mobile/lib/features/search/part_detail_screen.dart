@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../browse/diagram_screen.dart';
 import 'data/lookup_repository.dart';
 import 'models.dart';
+import 'recent_parts_store.dart';
 
 class PartDetailScreen extends StatefulWidget {
   const PartDetailScreen({super.key, required this.partId});
@@ -22,6 +23,9 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
   void initState() {
     super.initState();
     _future = context.read<LookupRepository>().partDetail(widget.partId);
+    // Any way a part gets opened (search, recent list, assistant citation,
+    // diagram tap) counts as a recent lookup.
+    context.read<RecentPartsStore>().record(widget.partId);
   }
 
   void _copy(String value) {

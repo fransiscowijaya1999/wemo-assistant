@@ -13,39 +13,134 @@ class LookupRepository {
 
   final AppDatabase db;
 
-  /// Search parts by part number, name, or alias (substring, case-insensitive).
+  /// Search parts by part number, name, or alias — mirrors the backend
+  /// `searchParts` engine: token search (parts ranked by how many query words
+  /// match ANY field, so extra words like the motorcycle model don't break the
+  /// match) and dash-insensitive/partial part numbers ("9430125120" or
+  /// "94301" both find 94301-25120).
   Future<List<PartSearchResult>> search(String query) async {
     final q = query.trim();
     if (q.isEmpty) return [];
-    final pattern = '%$q%';
 
+    final tokens = q
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 2)
+        .toSet()
+        .take(8)
+        .toList();
+    final terms = tokens.isEmpty ? [q.toLowerCase()] : tokens;
+
+    final score = <String, int>{};
+    for (final term in terms) {
+      for (final id in await _idsMatchingTerm(term)) {
+        score[id] = (score[id] ?? 0) + 1;
+      }
+    }
+    if (score.isEmpty) return [];
+
+    final ids = (score.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
+        .take(50)
+        .map((e) => e.key)
+        .toList();
+
+    final byId = {for (final r in await partsByIds(ids, matchTerms: terms)) r.partId: r};
+    return [for (final id in ids) if (byId[id] != null) byId[id]!];
+  }
+
+  /// Part ids matching one term (substring, case-insensitive) in any field.
+  /// Part numbers also match with separators stripped.
+  Future<Set<String>> _idsMatchingTerm(String term) async {
+    final pattern = '%$term%';
+    final condensed = term.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
+    final rows = await db.customSelect(
+      'SELECT part_id AS id FROM part_numbers '
+      "WHERE value LIKE ?1 OR (?2 != '' AND replace(value, '-', '') LIKE ?3) "
+      'UNION SELECT id FROM parts WHERE name_normalized LIKE ?1 OR name_raw LIKE ?1 '
+      'UNION SELECT part_id AS id FROM aliases WHERE term LIKE ?1',
+      variables: [
+        Variable<String>(pattern),
+        Variable<String>(condensed),
+        Variable<String>('%$condensed%'),
+      ],
+      readsFrom: {db.parts, db.partNumbers, db.aliases},
+    ).get();
+    return {for (final r in rows) r.read<String>('id')};
+  }
+
+  /// Display rows for known part ids, in the given order — shared by search
+  /// results and the recent-parts list. When [matchTerms] is set, also reports
+  /// which number/alias matched (why this hit came up).
+  Future<List<PartSearchResult>> partsByIds(
+    List<String> ids, {
+    List<String>? matchTerms,
+  }) async {
+    if (ids.isEmpty) return [];
+    final placeholders = List.filled(ids.length, '?').join(',');
     final rows = await db.customSelect(
       'SELECT p.id AS part_id, '
       '       COALESCE(p.name_normalized, p.name_raw) AS name, '
       '       (SELECT value FROM part_numbers WHERE part_id = p.id AND is_primary = 1 LIMIT 1) AS primary_number, '
-      '       (SELECT value FROM part_numbers WHERE part_id = p.id AND value LIKE ? LIMIT 1) AS matched_number '
-      'FROM parts p '
-      'WHERE p.id IN ( '
-      '  SELECT part_id FROM part_numbers WHERE value LIKE ? '
-      '  UNION SELECT id FROM parts WHERE name_normalized LIKE ? OR name_raw LIKE ? '
-      '  UNION SELECT part_id FROM aliases WHERE term LIKE ? '
-      ') '
-      'ORDER BY (matched_number IS NULL), name '
-      'LIMIT 50',
-      variables: [for (var i = 0; i < 5; i++) Variable<String>(pattern)],
-      readsFrom: {db.parts, db.partNumbers, db.aliases},
+      '       (SELECT value FROM part_numbers WHERE part_id = p.id LIMIT 1) AS any_number, '
+      "       (SELECT group_concat(DISTINCT m.brand || ' ' || m.model) FROM assembly_items ai "
+      '        JOIN assemblies a ON a.id = ai.assembly_id '
+      '        JOIN machines m ON m.id = a.machine_id '
+      '        WHERE ai.base_part_id = p.id) AS machines '
+      'FROM parts p WHERE p.id IN ($placeholders)',
+      variables: [for (final id in ids) Variable<String>(id)],
+      readsFrom: {db.parts, db.partNumbers, db.assemblyItems, db.assemblies, db.machines},
     ).get();
 
-    return rows
-        .map(
-          (r) => PartSearchResult(
-            partId: r.read<String>('part_id'),
-            name: r.read<String>('name'),
-            primaryNumber: r.read<String?>('primary_number'),
-            matchedNumber: r.read<String?>('matched_number'),
-          ),
-        )
-        .toList();
+    final matchedNumber = <String, String>{};
+    final matchedAlias = <String, String>{};
+    if (matchTerms != null && matchTerms.isNotEmpty) {
+      final numberOr = <String>[];
+      final aliasOr = <String>[];
+      final numberVars = <Variable<String>>[];
+      final aliasVars = <Variable<String>>[];
+      for (final term in matchTerms) {
+        final condensed = term.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
+        numberOr.add("(value LIKE ? OR (? != '' AND replace(value, '-', '') LIKE ?))");
+        numberVars
+          ..add(Variable<String>('%$term%'))
+          ..add(Variable<String>(condensed))
+          ..add(Variable<String>('%$condensed%'));
+        aliasOr.add('term LIKE ?');
+        aliasVars.add(Variable<String>('%$term%'));
+      }
+      final numberRows = await db.customSelect(
+        'SELECT part_id, value FROM part_numbers '
+        'WHERE part_id IN ($placeholders) AND (${numberOr.join(' OR ')})',
+        variables: [for (final id in ids) Variable<String>(id), ...numberVars],
+        readsFrom: {db.partNumbers},
+      ).get();
+      for (final r in numberRows) {
+        matchedNumber.putIfAbsent(r.read<String>('part_id'), () => r.read<String>('value'));
+      }
+      final aliasRows = await db.customSelect(
+        'SELECT part_id, term FROM aliases '
+        'WHERE part_id IN ($placeholders) AND (${aliasOr.join(' OR ')})',
+        variables: [for (final id in ids) Variable<String>(id), ...aliasVars],
+        readsFrom: {db.aliases},
+      ).get();
+      for (final r in aliasRows) {
+        matchedAlias.putIfAbsent(r.read<String>('part_id'), () => r.read<String>('term'));
+      }
+    }
+
+    final byId = <String, PartSearchResult>{};
+    for (final r in rows) {
+      final id = r.read<String>('part_id');
+      byId[id] = PartSearchResult(
+        partId: id,
+        name: r.read<String>('name'),
+        primaryNumber: r.read<String?>('primary_number') ?? r.read<String?>('any_number'),
+        matchedNumber: matchedNumber[id],
+        matchedAlias: matchedAlias[id],
+        machines: r.read<String?>('machines')?.replaceAll(',', ', '),
+      );
+    }
+    return [for (final id in ids) if (byId[id] != null) byId[id]!];
   }
 
   Future<PartDetail?> partDetail(String partId) async {

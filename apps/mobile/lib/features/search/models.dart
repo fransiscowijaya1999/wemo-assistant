@@ -6,7 +6,9 @@ class PartSearchResult {
     required this.partId,
     required this.name,
     required this.primaryNumber,
-    required this.matchedNumber,
+    this.matchedNumber,
+    this.matchedAlias,
+    this.machines,
   });
 
   final String partId;
@@ -16,6 +18,13 @@ class PartSearchResult {
   /// A number on this part that matched the query (may equal [primaryNumber],
   /// or be an alternate/superseded number the clerk typed).
   final String? matchedNumber;
+
+  /// An alias (local/colloquial term) that matched the query.
+  final String? matchedAlias;
+
+  /// "Honda BeAT 2008, Honda PCX160" — machines whose diagrams the part
+  /// appears on; null when the part has no placements.
+  final String? machines;
 }
 
 class PartNumberView {

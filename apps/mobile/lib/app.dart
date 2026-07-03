@@ -11,14 +11,22 @@ import 'features/browse/data/catalog_repository.dart';
 import 'features/browse/fitment_controller.dart';
 import 'features/home/home_shell.dart';
 import 'features/search/data/lookup_repository.dart';
+import 'features/search/recent_parts_store.dart';
 import 'features/sync/sync_controller.dart';
 
 class WemoClerkApp extends StatelessWidget {
-  const WemoClerkApp({super.key, required this.db, required this.settings, required this.imageStore});
+  const WemoClerkApp({
+    super.key,
+    required this.db,
+    required this.settings,
+    required this.imageStore,
+    required this.recentParts,
+  });
 
   final AppDatabase db;
   final AppSettings settings;
   final ImageStore imageStore;
+  final RecentPartsStore recentParts;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +37,7 @@ class WemoClerkApp extends StatelessWidget {
         Provider<ImageStore>.value(value: imageStore),
         Provider<CatalogRepository>(create: (_) => CatalogRepository(db)),
         Provider<LookupRepository>(create: (_) => LookupRepository(db)),
+        ChangeNotifierProvider<RecentPartsStore>.value(value: recentParts),
         ChangeNotifierProvider<FitmentController>(create: (_) => FitmentController()),
         ChangeNotifierProvider<SyncController>(
           create: (_) => SyncController(db: db, settings: settings, imageStore: imageStore),
