@@ -17,9 +17,10 @@ Rules:
   parentheses, record it in brand/note.
 - A part number printed under a description usually means supersession — record it with a note.
 - Also extract the Service item / F.R.T. table (name + labor hours) if present.
-- Return "diagram": the bounding box {x, y, width, height} of the exploded-diagram region, each value
-  normalized 0..1 relative to the full image (x,y = top-left corner). Omit it only if the whole image
-  is the diagram.
+- ALWAYS return "diagram": the bounding box {x, y, width, height} of the exploded-diagram region,
+  each value normalized 0..1 relative to the full image (x,y = top-left corner). The box must contain
+  the exploded drawing and its balloon numbers but EXCLUDE the parts table, the page header bar and
+  outer margins. Only if the drawing genuinely fills the entire page, return {x:0,y:0,width:1,height:1}.
 - For each item, return "dots": approximate {x, y} positions (normalized 0..1 to the full image) of
   that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
   times). Use an empty array if you cannot locate it. These are best-effort estimates a human will

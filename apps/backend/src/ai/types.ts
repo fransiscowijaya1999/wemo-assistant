@@ -60,9 +60,9 @@ export const extractedPage = z.object({
   }),
   diagram: z
     .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
-    .nullable()
-    .optional()
-    .describe('Bounding box (normalized 0..1, top-left origin) of the exploded-diagram region on the page.'),
+    .describe(
+      'Bounding box (normalized 0..1, top-left origin) of the exploded-diagram region only — excluding the parts table, page header and margins. If the drawing truly fills the whole page, use {x:0,y:0,width:1,height:1}.',
+    ),
   items: z.array(extractedItem),
   serviceItems: z.array(extractedServiceItem),
   variantColumns: z
