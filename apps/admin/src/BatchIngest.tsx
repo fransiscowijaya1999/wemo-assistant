@@ -75,7 +75,15 @@ async function renderPdf(
   onProgress: (n: number, total: number) => void,
 ): Promise<{ pageNo: number; dataUrl: string }[]> {
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  // wasmUrl is required for pdf.js to decode JBIG2/JPX-compressed images — the
+  // exploded diagrams in Honda catalogs are JBIG2 stencils. Without it pdf.js
+  // silently drops them ("ignoring XObject") and pages render with a blank
+  // diagram region. Served from /pdfjs-wasm/ (see vite.config.ts).
+  const pdf = await pdfjsLib.getDocument({
+    data: buf,
+    wasmUrl: new URL('pdfjs-wasm/', document.baseURI).href,
+    iccUrl: new URL('pdfjs-wasm/', document.baseURI).href,
+  }).promise;
   const out: { pageNo: number; dataUrl: string }[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
