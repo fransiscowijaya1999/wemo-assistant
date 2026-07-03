@@ -75,7 +75,20 @@ async function streamExtraction<T>(
   params: Anthropic.MessageStreamParams,
   schema: z.ZodType<T>,
 ): Promise<T> {
-  const msg = await client.messages.stream(params).finalMessage();
+  const started = Date.now();
+  const stream = client.messages.stream(params);
+  let events = 0;
+  stream.on('streamEvent', () => {
+    events += 1;
+    if (events % 500 === 0) {
+      console.log(`[extract] streaming… ${events} events, ${Math.round((Date.now() - started) / 1000)}s`);
+    }
+  });
+  const msg = await stream.finalMessage();
+  console.log(
+    `[extract] finished in ${Math.round((Date.now() - started) / 1000)}s ` +
+      `(stop=${msg.stop_reason}, out=${msg.usage.output_tokens} tokens)`,
+  );
   if (msg.stop_reason === 'max_tokens') {
     throw new Error('extraction hit max_tokens before finishing — page too dense for one call');
   }
