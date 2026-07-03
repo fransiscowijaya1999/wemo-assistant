@@ -54,7 +54,7 @@ class SyncController extends ChangeNotifier {
     imagesFetched = 0;
     notifyListeners();
 
-    final api = SyncApi(baseUrl: settings.baseUrl);
+    final api = SyncApi(baseUrl: settings.baseUrl, apiKey: settings.apiKey);
     // Last-seen image state per assembly across the session (id -> delta).
     final imageDeltas = <String, AssemblyImageDelta>{};
     try {

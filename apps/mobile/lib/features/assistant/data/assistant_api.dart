@@ -19,9 +19,11 @@ class AssistantApiException implements Exception {
 
 /// Client for the read-only clerk chat endpoint (`POST /chat`). Online-only.
 class AssistantApi {
-  AssistantApi({required this.baseUrl, http.Client? client}) : _client = client ?? http.Client();
+  AssistantApi({required this.baseUrl, this.apiKey = '', http.Client? client})
+      : _client = client ?? http.Client();
 
   final String baseUrl;
+  final String apiKey;
   final http.Client _client;
 
   String get _base => baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -52,7 +54,10 @@ class AssistantApi {
       res = await _client
           .post(
             Uri.parse('$_base/chat'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (apiKey.isNotEmpty) 'Authorization': 'Bearer $apiKey',
+            },
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 60));
@@ -60,6 +65,9 @@ class AssistantApi {
       throw AssistantApiException('Can’t reach the assistant ($e).');
     }
 
+    if (res.statusCode == 401) {
+      throw AssistantApiException('Not authorized — check the API key on the Sync screen.');
+    }
     if (res.statusCode == 503) {
       throw AssistantApiException('The assistant isn’t configured on the server yet.');
     }

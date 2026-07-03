@@ -16,26 +16,33 @@ class SyncScreen extends StatefulWidget {
 
 class _SyncScreenState extends State<SyncScreen> {
   late final TextEditingController _urlController;
+  late final TextEditingController _apiKeyController;
+  bool _showApiKey = false;
 
   @override
   void initState() {
     super.initState();
-    _urlController = TextEditingController(text: context.read<AppSettings>().baseUrl);
+    final settings = context.read<AppSettings>();
+    _urlController = TextEditingController(text: settings.baseUrl);
+    _apiKeyController = TextEditingController(text: settings.apiKey);
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _apiKeyController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveUrl() async {
-    await context.read<AppSettings>().setBaseUrl(_urlController.text);
+  Future<void> _saveSettings() async {
+    final settings = context.read<AppSettings>();
+    await settings.setBaseUrl(_urlController.text);
+    await settings.setApiKey(_apiKeyController.text);
     if (!mounted) return;
     FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Backend URL saved')));
+      ..showSnackBar(const SnackBar(content: Text('Backend settings saved')));
   }
 
   @override
@@ -60,11 +67,38 @@ class _SyncScreenState extends State<SyncScreen> {
                 helperText: 'Emulator → http://10.0.2.2:8787 reaches the PC',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.save_outlined),
-                  tooltip: 'Save URL',
-                  onPressed: _saveUrl,
+                  tooltip: 'Save settings',
+                  onPressed: _saveSettings,
                 ),
               ),
-              onSubmitted: (_) => _saveUrl(),
+              onSubmitted: (_) => _saveSettings(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _apiKeyController,
+              obscureText: !_showApiKey,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: InputDecoration(
+                labelText: 'API key',
+                helperText: 'Clerk read key from the shop owner (stored on this phone only)',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(_showApiKey ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                      tooltip: _showApiKey ? 'Hide key' : 'Show key',
+                      onPressed: () => setState(() => _showApiKey = !_showApiKey),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.save_outlined),
+                      tooltip: 'Save settings',
+                      onPressed: _saveSettings,
+                    ),
+                  ],
+                ),
+              ),
+              onSubmitted: (_) => _saveSettings(),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

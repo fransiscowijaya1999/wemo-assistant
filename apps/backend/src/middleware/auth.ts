@@ -16,3 +16,20 @@ export const requireAdmin = createMiddleware<{ Bindings: Bindings }>(async (c, n
   }
   await next();
 });
+
+/**
+ * Guards clerk-facing reads (/sync, /chat). The clerk app presents CLERK_TOKEN — entered by hand
+ * in the app's Sync settings, never compiled into the APK. It authorizes reads only; mutations
+ * still require ADMIN_TOKEN (which is also accepted here, so the admin can use the clerk app).
+ * A missing CLERK_TOKEN denies by default.
+ */
+export const requireClerkRead = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
+  const provided = c.req.header('Authorization');
+  const ok =
+    (c.env.CLERK_TOKEN && provided === `Bearer ${c.env.CLERK_TOKEN}`) ||
+    (c.env.ADMIN_TOKEN && provided === `Bearer ${c.env.ADMIN_TOKEN}`);
+  if (!ok) {
+    return c.json({ error: 'clerk authorization required' }, 401);
+  }
+  await next();
+});

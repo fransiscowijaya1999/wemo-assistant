@@ -4,12 +4,14 @@ import { getChatProvider, resolveAiConfig } from '../ai';
 import type { ChatMessage } from '../ai/chat';
 import { createCatalogToolset } from '../ai/catalog-tools';
 import { getDb } from '../db/client';
+import { requireClerkRead } from '../middleware/auth';
 
 export const chatRoute = new Hono<{ Bindings: Bindings }>();
 
 // CLERK-facing assistant. READ-ONLY: it looks up catalog data via read-only
 // tools and performs NO writes (see the authorization invariant in CLAUDE.md).
-// Open like the other clerk reads (/sync, GET /assemblies) — no admin token.
+// Guarded by the clerk read token (entered in the mobile app's settings), same
+// as /sync — reads only, never the admin token.
 const SYSTEM = `You are a parts-identification assistant for a Honda motorcycle spare-parts shop with
 an attached workshop, in Indonesia. Customers are often non-technical and arrive WITHOUT a part
 number — the broken part may have no visible marking. Your job is to identify the exact correct part
@@ -27,7 +29,7 @@ How to work:
 - Be concise and practical for a busy shop clerk. Reply in the language the clerk used (Indonesian or
   English). When you name a part, include its primary OEM number.`;
 
-chatRoute.post('/', async (c) => {
+chatRoute.post('/', requireClerkRead, async (c) => {
   const body = await c.req.json<{ messages?: ChatMessage[] }>().catch(() => null);
   const messages = (body?.messages ?? []).filter(
     (m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string' && m.content.trim(),

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { and, asc, eq, gt, lte, or } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
+import { requireClerkRead } from '../middleware/auth';
 import { getDb } from '../db/client';
 import {
   aliases,
@@ -77,7 +78,7 @@ const msOf = (v: Date | number | string): number =>
 // Response: { since, cursor, hasMore, limit, tables }.
 //   hasMore=true  -> call again, passing the returned `cursor` back verbatim.
 //   hasMore=false -> delta complete; `cursor` is a bare number = the next session's `since`.
-syncRoute.get('/', async (c) => {
+syncRoute.get('/', requireClerkRead, async (c) => {
   const parsed = parseToken(c.req.query('cursor') ?? c.req.query('since'));
   const since = parsed.since;
   // newSince: constant across a paginated session. On a fresh session, snapshot "now" (never below

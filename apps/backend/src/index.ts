@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Bindings } from './bindings';
-import { requireAdmin } from './middleware/auth';
+import { requireAdmin, requireClerkRead } from './middleware/auth';
 import { machinesRoute } from './routes/machines';
 import { assembliesRoute } from './routes/assemblies';
 import { partsRoute } from './routes/parts';
@@ -21,6 +21,9 @@ app.get('/health', async (c) => {
 
 // Admin-token check (no side effects) — used by the admin Settings "Test connection".
 app.get('/auth/check', requireAdmin, (c) => c.json({ ok: true }));
+
+// Clerk-token check (no side effects) — used by the mobile app to validate the key on save.
+app.get('/auth/clerk-check', requireClerkRead, (c) => c.json({ ok: true }));
 
 app.route('/machines', machinesRoute);
 app.route('/assemblies', assembliesRoute);

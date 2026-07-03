@@ -15,7 +15,7 @@ class AssistantController extends ChangeNotifier {
   final List<ChatMessage> messages = [];
   bool sending = false;
 
-  AssistantApi _api() => AssistantApi(baseUrl: settings.baseUrl);
+  AssistantApi _api() => AssistantApi(baseUrl: settings.baseUrl, apiKey: settings.apiKey);
 
   Future<void> send(String text) async {
     final content = text.trim();

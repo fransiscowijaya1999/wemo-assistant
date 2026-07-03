@@ -27,17 +27,25 @@ class SyncApiException implements Exception {
   String toString() => 'SyncApiException: $message';
 }
 
-/// Thin HTTP client for the read-only sync endpoint. No auth (reads are open);
-/// the replica never writes back.
+/// Thin HTTP client for the read-only sync endpoint. Reads are guarded by the
+/// clerk API key (sent as a Bearer header); the replica never writes back.
 class SyncApi {
-  SyncApi({required this.baseUrl, http.Client? client, this.timeout = const Duration(seconds: 30)})
-    : _client = client ?? http.Client(),
-      _ownsClient = client == null;
+  SyncApi({
+    required this.baseUrl,
+    this.apiKey = '',
+    http.Client? client,
+    this.timeout = const Duration(seconds: 30),
+  }) : _client = client ?? http.Client(),
+       _ownsClient = client == null;
 
   final String baseUrl;
+  final String apiKey;
   final Duration timeout;
   final http.Client _client;
   final bool _ownsClient;
+
+  Map<String, String> get _headers =>
+      apiKey.isEmpty ? const {} : {'Authorization': 'Bearer $apiKey'};
 
   Future<SyncPage> fetch({required String cursor, int? limit}) async {
     final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
@@ -50,9 +58,12 @@ class SyncApi {
 
     final http.Response res;
     try {
-      res = await _client.get(uri).timeout(timeout);
+      res = await _client.get(uri, headers: _headers).timeout(timeout);
     } catch (e) {
       throw SyncApiException('cannot reach $base ($e)');
+    }
+    if (res.statusCode == 401) {
+      throw SyncApiException('Not authorized — check the API key on the Sync screen.');
     }
     if (res.statusCode != 200) {
       throw SyncApiException('HTTP ${res.statusCode} from $uri');
@@ -86,7 +97,7 @@ class SyncApi {
 
     final http.Response res;
     try {
-      res = await _client.get(uri).timeout(timeout);
+      res = await _client.get(uri, headers: _headers).timeout(timeout);
     } catch (e) {
       throw SyncApiException('cannot reach $base ($e)');
     }

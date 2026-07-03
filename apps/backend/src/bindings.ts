@@ -3,6 +3,8 @@ export type Bindings = {
   IMAGES: R2Bucket;
   /** Bearer token authorizing admin (write) requests. Set in .dev.vars locally. */
   ADMIN_TOKEN?: string;
+  /** Bearer token authorizing clerk reads (/sync, /chat). Entered in the mobile app's settings. */
+  CLERK_TOKEN?: string;
   /** AI provider key for catalog ingestion + clerk assistant. Set in .dev.vars locally / wrangler secret in prod. */
   ANTHROPIC_API_KEY?: string;
   /** DeepSeek key (OpenAI-compatible) — an alternative chat provider for the clerk assistant. */
