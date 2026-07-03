@@ -130,7 +130,11 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const setAll = (type: PageType) => setPages((prev) => prev.map((pg) => ({ ...pg, type })));
 
   async function extractSelected() {
-    const targets = pages.map((p, i) => ({ p, i })).filter((x) => x.p.type !== 'skip' && x.p.status !== 'committed');
+    // Only pending/error pages: re-running Extract after a partial failure must not
+    // re-pay for pages that already extracted. To redo one, flip it to skip and back.
+    const targets = pages
+      .map((p, i) => ({ p, i }))
+      .filter((x) => x.p.type !== 'skip' && (x.p.status === 'pending' || x.p.status === 'error'));
     if (!targets.length) {
       setErr('Mark some pages as assembly or color first.');
       return;
@@ -301,7 +305,15 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
                   w={92}
                   data={['skip', 'assembly', 'color']}
                   value={p.type}
-                  onChange={(v) => patch(i, { type: (v as PageType) ?? 'skip' })}
+                  onChange={(v) =>
+                    patch(i, {
+                      type: (v as PageType) ?? 'skip',
+                      status: 'pending',
+                      extracted: undefined,
+                      info: undefined,
+                      error: undefined,
+                    })
+                  }
                   allowDeselect={false}
                 />
               </Group>

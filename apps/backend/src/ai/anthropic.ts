@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import type { z } from 'zod';
 import { extractedColorPage, extractedPage } from './types';
 import type { ExtractCatalogPageInput, VisionExtractionProvider } from './provider';
 
@@ -54,64 +55,87 @@ Rules:
 
 export const DEFAULT_VISION_MODEL = 'claude-opus-4-8';
 
+// A page extraction can legitimately generate for several minutes (adaptive thinking
+// on a dense or unusual page). A non-streaming call only receives HTTP headers once
+// generation FINISHES server-side, so long pages died on the request timeout no matter
+// its value. Streaming gets headers immediately — the SDK clears its timeout at that
+// point — so the timeout below only guards connection/first-byte, and generation can
+// run as long as it needs (bounded by max_tokens).
+async function streamExtraction<T>(
+  client: Anthropic,
+  params: Anthropic.MessageStreamParams,
+  schema: z.ZodType<T>,
+): Promise<T> {
+  const msg = await client.messages.stream(params).finalMessage();
+  if (msg.stop_reason === 'max_tokens') {
+    throw new Error('extraction hit max_tokens before finishing — page too dense for one call');
+  }
+  const text = msg.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  if (!text) {
+    throw new Error(`extraction returned no structured output (stop_reason=${msg.stop_reason})`);
+  }
+  return schema.parse(JSON.parse(text));
+}
+
 export function createAnthropicVisionProvider(
   apiKey: string,
   model = DEFAULT_VISION_MODEL,
 ): VisionExtractionProvider {
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 1 });
   return {
     async extractCatalogPage({ imageBase64, mediaType }: ExtractCatalogPageInput) {
-      const res = await client.messages.parse({
-        model,
-        max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        system: SYSTEM,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-              {
-                type: 'text',
-                text: 'Extract the assembly header, the full parts table, the service/FRT table, the diagram bounding box, and each ref\'s balloon coordinates from this catalog page.',
-              },
-            ],
-          },
-        ],
-        output_config: { format: zodOutputFormat(extractedPage) },
-      });
-
-      if (!res.parsed_output) {
-        throw new Error(`extraction returned no structured output (stop_reason=${res.stop_reason})`);
-      }
-      return res.parsed_output;
+      return streamExtraction(
+        client,
+        {
+          model,
+          max_tokens: 16000,
+          thinking: { type: 'adaptive' },
+          system: SYSTEM,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+                {
+                  type: 'text',
+                  text: 'Extract the assembly header, the full parts table, the service/FRT table, the diagram bounding box, and each ref\'s balloon coordinates from this catalog page.',
+                },
+              ],
+            },
+          ],
+          output_config: { format: zodOutputFormat(extractedPage) },
+        },
+        extractedPage,
+      );
     },
 
     async extractColorPage({ imageBase64, mediaType }: ExtractCatalogPageInput) {
-      const res = await client.messages.parse({
-        model,
-        max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        system: COLOR_SYSTEM,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-              {
-                type: 'text',
-                text: 'Extract the color legend and every colored-part row from this color-index page.',
-              },
-            ],
-          },
-        ],
-        output_config: { format: zodOutputFormat(extractedColorPage) },
-      });
-
-      if (!res.parsed_output) {
-        throw new Error(`color extraction returned no structured output (stop_reason=${res.stop_reason})`);
-      }
-      return res.parsed_output;
+      return streamExtraction(
+        client,
+        {
+          model,
+          max_tokens: 16000,
+          thinking: { type: 'adaptive' },
+          system: COLOR_SYSTEM,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+                {
+                  type: 'text',
+                  text: 'Extract the color legend and every colored-part row from this color-index page.',
+                },
+              ],
+            },
+          ],
+          output_config: { format: zodOutputFormat(extractedColorPage) },
+        },
+        extractedColorPage,
+      );
     },
   };
 }
