@@ -7,6 +7,7 @@ import { partsRoute } from './routes/parts';
 import { ingestRoute } from './routes/ingest';
 import { syncRoute } from './routes/sync';
 import { chatRoute } from './routes/chat';
+import { adminRoute } from './routes/admin';
 import { settingsRoute } from './routes/settings';
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -31,6 +32,7 @@ app.route('/parts', partsRoute);
 app.route('/ingest', ingestRoute);
 app.route('/sync', syncRoute);
 app.route('/chat', chatRoute);
+app.route('/admin', adminRoute);
 app.route('/settings', settingsRoute);
 
 export default app;

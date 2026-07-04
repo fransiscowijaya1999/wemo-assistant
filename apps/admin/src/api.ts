@@ -1,8 +1,10 @@
 import type {
   AiSettings,
   Assembly,
+  ChatMessage,
   ColorCommitSummary,
   CommitSummary,
+  CorrectionProposal,
   EditorDot,
   ExtractedColorPage,
   ExtractedPage,
@@ -10,6 +12,7 @@ import type {
   Machine,
   MachineVariant,
   PartFull,
+  Proposal,
   SearchResult,
 } from './types';
 
@@ -94,6 +97,10 @@ export const api = {
   lookupPart: (number: string) => req<PartFull>(`/parts?number=${encodeURIComponent(number)}`),
   searchParts: (q: string) => req<{ results: SearchResult[] }>(`/parts/search?q=${encodeURIComponent(q)}`),
   getPart: (id: string) => req<PartFull>(`/parts/${encodeURIComponent(id)}`),
+  adminChat: (messages: ChatMessage[]) =>
+    req<{ reply: string; proposals: Proposal[] }>('/admin/chat', { method: 'POST', admin: true, body: { messages } }),
+  applyCorrection: (proposal: CorrectionProposal) =>
+    req<{ ok: boolean; summary: string }>('/admin/corrections/apply', { method: 'POST', admin: true, body: { proposal } }),
   checkAuth: () => req<{ ok: boolean }>('/auth/check', { admin: true }),
   getAiSettings: () => req<AiSettings>('/settings/ai', { admin: true }),
   saveAiSettings: (

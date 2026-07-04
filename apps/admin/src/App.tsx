@@ -23,6 +23,7 @@ import {
   IconPhotoScan,
   IconSearch,
   IconSettings,
+  IconSparkles,
   IconSun,
 } from '@tabler/icons-react';
 import { api } from './api';
@@ -34,6 +35,7 @@ import { ColorIngestView } from './ColorIngestView';
 import { BatchIngest } from './BatchIngest';
 import { DotEditor } from './DotEditor';
 import { BrowseView } from './BrowseView';
+import { AssistantView } from './AssistantView';
 import { SettingsView } from './SettingsView';
 
 function NeedMachine() {
@@ -131,6 +133,9 @@ function Shell() {
                 <Tabs.Tab value="browse" leftSection={<IconSearch size={16} />}>
                   Browse
                 </Tabs.Tab>
+                <Tabs.Tab value="assistant" leftSection={<IconSparkles size={16} />}>
+                  Assistant
+                </Tabs.Tab>
                 <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
                   Settings
                 </Tabs.Tab>
@@ -155,6 +160,9 @@ function Shell() {
                   onMachineCreated={refreshMachines}
                   onGoToIngest={() => setTab('ingest')}
                 />
+              </Tabs.Panel>
+              <Tabs.Panel value="assistant" pt="md">
+                <AssistantView />
               </Tabs.Panel>
               <Tabs.Panel value="settings" pt="md">
                 <SettingsView />

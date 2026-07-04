@@ -92,7 +92,7 @@ export async function searchParts(db: Db, query: string) {
     }));
 }
 
-async function getPart(db: Db, args: { partId?: string; number?: string }) {
+export async function getPart(db: Db, args: { partId?: string; number?: string }) {
   let id = args.partId;
   if (!id && args.number) {
     const pn = await db

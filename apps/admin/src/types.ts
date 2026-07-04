@@ -143,3 +143,24 @@ export type PartFull = {
   colorVariants: { id: string; colorId: string; suffixCode?: string | null; fullNumber?: string | null }[];
   placements: Placement[];
 };
+
+// --- Admin correction assistant ---
+
+export type NumberKind = 'oem' | 'alternative' | 'superseded' | 'aftermarket' | 'bulk';
+
+export type CorrectionProposal =
+  | { type: 'rename'; partId: string; nameNormalized?: string | null; category?: string | null; notes?: string | null }
+  | { type: 'add_alias'; partId: string; term: string; lang?: string | null }
+  | { type: 'add_number'; partId: string; value: string; kind?: NumberKind; brand?: string | null }
+  | { type: 'edit_number'; partId: string; value: string; newValue?: string; kind?: NumberKind; brand?: string | null };
+
+export type Proposal = {
+  id: string;
+  proposal: CorrectionProposal;
+  summary: string;
+  partLabel: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+};
+
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
