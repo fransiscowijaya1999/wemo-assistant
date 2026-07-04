@@ -5,11 +5,21 @@ import { extractedColorPage, extractedPage } from './types';
 import type { ExtractCatalogPageInput, VisionExtractionProvider } from './provider';
 
 const SYSTEM = `You extract structured data from Honda Indonesia motorcycle spare-parts catalog
-("Katalog Suku Cadang") assembly pages. A page has an assembly code + name, an exploded diagram with
-numbered balloons, a parts table, and often a Service item / F.R.T. table.
+("Katalog Suku Cadang") assembly pages. A page USUALLY has an assembly code + name, an exploded
+diagram with numbered balloons, a parts table, and often a Service item / F.R.T. table. But a page
+can also be a CONTINUATION of the previous assembly: the same assembly code + name in the header and
+more parts-table rows, but NO exploded drawing (the diagram appeared on an earlier page).
 
 Rules:
+- YOUR PRIMARY JOB IS THE PARTS TABLE. If the page shows a parts table (rows of No. | Part Number |
+  Description | QTY), output exactly ONE item per row — ALWAYS. This is true even when the page has NO
+  exploded drawing (a continuation / table-only page), and even if the first row is parenthesized
+  like "11)" because it continues a ref from the previous page (still extract it). Returning zero
+  items while a parts table is visible on the page is ALWAYS a mistake. Do not skip rows as
+  "duplicates" or "continuations" — transcribe every row you can see.
 - Transcribe verbatim. Never invent or "correct" part numbers, descriptions, or quantities.
+- CONTINUATION / TABLE-ONLY pages: the header still shows the assembly code + name; read them from
+  there. Set diagram {x:0,y:0,width:1,height:1} and an empty "dots" array for each item.
 - Descriptions are English and comma-inverted (e.g. "GASKET, CYLINDER HEAD"). Keep them exactly.
 - Parts table columns are: No. (ref/balloon number) | Part Number | Description | QTY | Notes.
 - A single ref number may list MULTIPLE part numbers (interchangeable/alternate parts) — capture
@@ -20,7 +30,8 @@ Rules:
 - ALWAYS return "diagram": the bounding box {x, y, width, height} of the exploded-diagram region,
   each value normalized 0..1 relative to the full image (x,y = top-left corner). The box must contain
   the exploded drawing and its balloon numbers but EXCLUDE the parts table, the page header bar and
-  outer margins. Only if the drawing genuinely fills the entire page, return {x:0,y:0,width:1,height:1}.
+  outer margins. If the page has NO exploded drawing at all (table-only page), or the drawing fills
+  the entire page, return {x:0,y:0,width:1,height:1}.
 - For each item, return "dots": approximate {x, y} positions (normalized 0..1 to the full image) of
   that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
   times). Use an empty array if you cannot locate it. These are best-effort estimates a human will
