@@ -41,6 +41,10 @@ class SyncRepository {
   /// Reset to a full sync (recovery / "force full sync").
   Future<void> resetCursor() => saveCursor('0');
 
+  /// Wipe the mirrored catalog so a full sync rebuilds it from scratch,
+  /// discarding any orphan rows the delta feed can no longer tombstone.
+  Future<void> clearCatalog() => db.clearCatalog();
+
   // --- Apply a page ---------------------------------------------------------
 
   Future<void> applyPage(Map<String, List<Map<String, dynamic>>> tables) async {

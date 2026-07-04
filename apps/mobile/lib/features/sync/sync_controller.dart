@@ -97,9 +97,14 @@ class SyncController extends ChangeNotifier {
     }
   }
 
-  /// Reset the cursor and pull the whole catalog again (recovery path).
+  /// Wipe the local replica and pull the whole catalog again (recovery path).
+  ///
+  /// Clears the mirrored tables first so orphan rows the delta feed can no
+  /// longer tombstone (e.g. dots hard-deleted on the master before tombstoning)
+  /// are dropped, then re-pulls from cursor 0 for an exact copy of the master.
   Future<void> forceFullSync() async {
     if (status == SyncStatus.syncing) return;
+    await _repo.clearCatalog();
     await _repo.resetCursor();
     await syncNow();
   }

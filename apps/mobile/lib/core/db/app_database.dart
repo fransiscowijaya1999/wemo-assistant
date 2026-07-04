@@ -51,6 +51,23 @@ class AppDatabase extends _$AppDatabase {
     'serviceItems': serviceItems,
   };
 
+  /// Wipe every mirrored catalog table so a full sync can rebuild from scratch.
+  ///
+  /// Used by "force full sync": the delta feed only drops a local row when it
+  /// pulls a `deletedAt` tombstone, so rows hard-deleted on the master before
+  /// tombstoning was in place (e.g. old balloon dots) leave orphans a cursor-0
+  /// re-pull never learns to remove. Clearing first guarantees the replica ends
+  /// up with exactly what the master currently holds. `syncStates` is left
+  /// alone — the caller resets the cursor separately. Children are deleted
+  /// before parents (reverse insert order) to respect any FK constraints.
+  Future<void> clearCatalog() async {
+    await transaction(() async {
+      for (final table in syncTables.values.toList().reversed) {
+        await customStatement('DELETE FROM ${table.actualTableName}');
+      }
+    });
+  }
+
   /// Live row count per mirrored table (soft-deleted rows are already removed).
   Future<Map<String, int>> tableCounts() async {
     final counts = <String, int>{};
