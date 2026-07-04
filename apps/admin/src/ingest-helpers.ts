@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { DiagramBox, ExtractedPage } from './types';
+import type { DiagramBox, EditorDot, ExtractedPage } from './types';
 
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -45,29 +45,44 @@ export function b64of(dataUrl: string): { b64: string; mediaType: string } {
   return { b64, mediaType: meta.substring(5, meta.indexOf(';')) };
 }
 
-// After commit: crop the page to the AI's diagram bbox (if any), upload it as the
-// assembly image, then transform the AI's per-ref balloon coords into crop space and save them.
+// After commit: crop the page to the AI's diagram bbox, upload it as the assembly image
+// (first diagram page only), then transform this page's per-ref balloon coords into crop
+// space and save them. Multi-page assemblies share one diagram, so we MERGE dots: positions
+// contributed by other pages are preserved (saveDots replaces the whole assembly's set), and
+// only the first page's crop becomes the image so cross-page dots stay on the same picture.
 export async function autoMap(assemblyId: string, page: ExtractedPage, pageDataUrl: string): Promise<number> {
   const box = page.diagram ?? null;
-  let uploadUrl = pageDataUrl;
-  let w: number;
-  let h: number;
-  if (box) {
-    const cropped = await cropToBox(pageDataUrl, box);
-    uploadUrl = cropped.dataUrl;
-    w = cropped.w;
-    h = cropped.h;
-  } else {
-    const meta = await imageMeta(pageDataUrl);
-    w = meta.w;
-    h = meta.h;
-  }
-  const { b64, mediaType } = b64of(uploadUrl);
-  await api.uploadAssemblyImage(assemblyId, b64, mediaType, w, h);
-
   const full = await api.getAssemblyFull(assemblyId);
+
+  // The first diagram page owns the image; later pages of the same assembly keep it.
+  if (!full.assembly.imageRef) {
+    let uploadUrl = pageDataUrl;
+    let w: number;
+    let h: number;
+    if (box) {
+      const cropped = await cropToBox(pageDataUrl, box);
+      uploadUrl = cropped.dataUrl;
+      w = cropped.w;
+      h = cropped.h;
+    } else {
+      const meta = await imageMeta(pageDataUrl);
+      w = meta.w;
+      h = meta.h;
+    }
+    const { b64, mediaType } = b64of(uploadUrl);
+    await api.uploadAssemblyImage(assemblyId, b64, mediaType, w, h);
+  }
+
   const idByRef = new Map(full.items.map((it) => [it.refNo, it.id]));
-  const dots: { assemblyItemId: string; x: number; y: number }[] = [];
+  const thisPageRefs = new Set(page.items.map((it) => it.refNo));
+  const dots: EditorDot[] = [];
+  // Preserve dots already placed for positions this page doesn't cover (earlier pages of a
+  // multi-page assembly) — saveDots overwrites the whole assembly, so resend them.
+  for (const it of full.items) {
+    if (thisPageRefs.has(it.refNo)) continue;
+    for (const d of it.dots) dots.push({ assemblyItemId: it.id, x: d.x, y: d.y });
+  }
+  let placed = 0;
   for (const it of page.items) {
     const aid = idByRef.get(it.refNo);
     if (!aid || !it.dots) continue;
@@ -80,8 +95,9 @@ export async function autoMap(assemblyId: string, page: ExtractedPage, pageDataU
       }
       if (x < 0 || x > 1 || y < 0 || y > 1) continue;
       dots.push({ assemblyItemId: aid, x, y });
+      placed++;
     }
   }
   if (dots.length) await api.saveDots(assemblyId, dots);
-  return dots.length;
+  return placed;
 }

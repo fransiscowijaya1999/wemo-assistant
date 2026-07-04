@@ -288,7 +288,7 @@ export function BrowseView({
               )}
 
               {full && !loadingFull && full.assembly.imageRef && (
-                <div className="canvas" style={{ cursor: 'default', maxWidth: 640, pointerEvents: 'none' }}>
+                <div className="canvas" style={{ cursor: 'default', maxWidth: 900, pointerEvents: 'none' }}>
                   <img src={imageUrl(full.assembly.id)} alt={`${full.assembly.code} diagram`} draggable={false} />
                   {full.items.flatMap((it) =>
                     it.dots.map((d, k) => (

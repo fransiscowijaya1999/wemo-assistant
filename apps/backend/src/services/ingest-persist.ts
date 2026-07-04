@@ -38,9 +38,12 @@ export type PersistSummary = {
  * new part is created. When an item lists several numbers that map to different existing
  * parts, the first match wins — full human-mediated merge is an admin-UI concern (later).
  *
- * Re-ingest: committing a page soft-deletes any live assembly with the same
- * (machineId, code) and its children first, so re-running a page replaces it instead of
- * duplicating it (deletions propagate to replicas via /sync).
+ * Multi-page assemblies: the exploded diagram is on page 1 and its parts table often
+ * continues onto later catalog pages that repeat the same (code, name). So a page is
+ * MERGED into the existing assembly with that (machineId, code) rather than replacing it:
+ * the assembly is get-or-created, and each position is upserted by ref number. Re-committing
+ * a page therefore refreshes only the ref numbers that page carries; ref numbers contributed
+ * by other pages of the same assembly are left intact (deletions propagate via /sync).
  *
  * Note: D1 has no interactive transactions in the Drizzle session, so inserts run
  * sequentially (not atomic). Acceptable for the review-then-commit flow; batch later.
@@ -58,8 +61,6 @@ export async function persistExtractedPage(db: Db, input: PersistInput): Promise
     machineVariantsCreated: 0,
     assembliesReplaced: 0,
   };
-
-  summary.assembliesReplaced = await softDeleteExistingAssemblies(db, machineId, extracted.assembly.code);
 
   // Machine variants referenced by per-variant quantities, get-or-created by name
   // (case-insensitive) so STD/ABS exist exactly once per machine across pages.
@@ -79,17 +80,51 @@ export async function persistExtractedPage(db: Db, input: PersistInput): Promise
     return created.id;
   }
 
-  const [assembly] = await db
-    .insert(assemblies)
-    .values({
-      machineId,
-      groupType,
-      code: extracted.assembly.code,
-      name: extracted.assembly.name,
-      imageCode: extracted.assembly.imageCode ?? null,
-    })
-    .returning();
+  // Get-or-create the assembly by (machineId, code) so continuation pages merge in. Keep the
+  // page-1 diagram: only overwrite imageCode when this page actually carries one.
+  const existingAssembly = await db
+    .select()
+    .from(assemblies)
+    .where(
+      and(
+        eq(assemblies.machineId, machineId),
+        eq(assemblies.code, extracted.assembly.code),
+        isNull(assemblies.deletedAt),
+      ),
+    )
+    .get();
+
+  let assembly: typeof assemblies.$inferSelect;
+  if (existingAssembly) {
+    await db
+      .update(assemblies)
+      .set({
+        name: extracted.assembly.name,
+        imageCode: extracted.assembly.imageCode ?? existingAssembly.imageCode,
+        updatedAt: new Date(),
+      })
+      .where(eq(assemblies.id, existingAssembly.id));
+    assembly = existingAssembly;
+    summary.assembliesReplaced = 1;
+  } else {
+    const [created] = await db
+      .insert(assemblies)
+      .values({
+        machineId,
+        groupType,
+        code: extracted.assembly.code,
+        name: extracted.assembly.name,
+        imageCode: extracted.assembly.imageCode ?? null,
+      })
+      .returning();
+    assembly = created;
+  }
   summary.assemblyId = assembly.id;
+
+  // Upsert positions by ref number: drop any live item(s) with a ref this page carries
+  // (+ their resolutions/dots) so re-committing a page refreshes those positions, while ref
+  // numbers from other pages of the same multi-page assembly stay put.
+  await softDeleteItemsByRefs(db, assembly.id, extracted.items.map((it) => it.refNo));
 
   for (const item of extracted.items) {
     // Resolve the canonical part: reuse an existing part if any number already exists.
@@ -172,49 +207,54 @@ export async function persistExtractedPage(db: Db, input: PersistInput): Promise
     }
   }
 
-  for (const svc of extracted.serviceItems) {
-    await db.insert(serviceItems).values({
-      assemblyId: assembly.id,
-      refNo: svc.refNo ?? null,
-      name: svc.name,
-      frtHours: svc.frtHours ?? null,
-    });
-    summary.serviceItemsCreated++;
+  // The FRT/service table lives on the diagram page. Treat an incoming table as
+  // authoritative (replace this assembly's live service items) but leave them untouched
+  // when a page has none, so a table-only continuation page can't wipe page 1's FRT.
+  if (extracted.serviceItems.length > 0) {
+    await db
+      .update(serviceItems)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(serviceItems.assemblyId, assembly.id), isNull(serviceItems.deletedAt)));
+    for (const svc of extracted.serviceItems) {
+      await db.insert(serviceItems).values({
+        assemblyId: assembly.id,
+        refNo: svc.refNo ?? null,
+        name: svc.name,
+        frtHours: svc.frtHours ?? null,
+      });
+      summary.serviceItemsCreated++;
+    }
   }
 
   return summary;
 }
 
 /**
- * Soft-deletes any live assembly with the same (machineId, code) plus its items,
- * resolutions, dots and service items. Parts/part_numbers are canonical and shared —
- * they are never deleted here. Returns how many assemblies were replaced.
+ * Soft-deletes the live positions on an assembly whose ref number is in `refNos`, plus their
+ * resolutions and dots. Used to upsert a page's positions without disturbing ref numbers that
+ * belong to other pages of the same multi-page assembly. Parts/part_numbers are canonical and
+ * shared — never deleted here.
  */
-async function softDeleteExistingAssemblies(db: Db, machineId: string, code: string): Promise<number> {
-  const existing = await db
-    .select({ id: assemblies.id })
-    .from(assemblies)
-    .where(and(eq(assemblies.machineId, machineId), eq(assemblies.code, code), isNull(assemblies.deletedAt)));
-  if (existing.length === 0) return 0;
-  const assemblyIds = existing.map((a) => a.id);
-
+async function softDeleteItemsByRefs(db: Db, assemblyId: string, refNos: string[]): Promise<void> {
+  const uniqueRefs = [...new Set(refNos)];
+  if (uniqueRefs.length === 0) return;
   const items = await db
     .select({ id: assemblyItems.id })
     .from(assemblyItems)
-    .where(and(inArray(assemblyItems.assemblyId, assemblyIds), isNull(assemblyItems.deletedAt)));
+    .where(
+      and(
+        eq(assemblyItems.assemblyId, assemblyId),
+        inArray(assemblyItems.refNo, uniqueRefs),
+        isNull(assemblyItems.deletedAt),
+      ),
+    );
+  if (items.length === 0) return;
   const itemIds = items.map((i) => i.id);
 
   const tombstone = { deletedAt: new Date(), updatedAt: new Date() };
-  if (itemIds.length > 0) {
-    await db.update(itemResolutions).set(tombstone)
-      .where(and(inArray(itemResolutions.assemblyItemId, itemIds), isNull(itemResolutions.deletedAt)));
-    await db.update(dots).set(tombstone)
-      .where(and(inArray(dots.assemblyItemId, itemIds), isNull(dots.deletedAt)));
-    await db.update(assemblyItems).set(tombstone).where(inArray(assemblyItems.id, itemIds));
-  }
-  await db.update(serviceItems).set(tombstone)
-    .where(and(inArray(serviceItems.assemblyId, assemblyIds), isNull(serviceItems.deletedAt)));
-  await db.update(assemblies).set(tombstone).where(inArray(assemblies.id, assemblyIds));
-
-  return assemblyIds.length;
+  await db.update(itemResolutions).set(tombstone)
+    .where(and(inArray(itemResolutions.assemblyItemId, itemIds), isNull(itemResolutions.deletedAt)));
+  await db.update(dots).set(tombstone)
+    .where(and(inArray(dots.assemblyItemId, itemIds), isNull(dots.deletedAt)));
+  await db.update(assemblyItems).set(tombstone).where(inArray(assemblyItems.id, itemIds));
 }
