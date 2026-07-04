@@ -17,6 +17,7 @@ import {
 } from '@mantine/core';
 import { IconArrowRight, IconCheck, IconRobot, IconSend, IconSparkles, IconX } from '@tabler/icons-react';
 import { api } from './api';
+import { Markdown } from './Markdown';
 import { notifyError, notifySuccess } from './notify';
 import type { ChatMessage, Proposal } from './types';
 
@@ -221,9 +222,13 @@ export function AssistantView() {
                   bg={m.role === 'user' ? 'var(--mantine-primary-color-light)' : undefined}
                   maw="80%"
                 >
-                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                    {m.content}
-                  </Text>
+                  {m.role === 'assistant' ? (
+                    <Markdown>{m.content}</Markdown>
+                  ) : (
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                      {m.content}
+                    </Text>
+                  )}
                 </Paper>
               </Group>
             ))}

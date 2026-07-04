@@ -2,6 +2,39 @@
   color-scheme: light dark;
 }
 
+/* Assistant chat: tighten TypographyStylesProvider so markdown reads like a
+   chat bubble (no big block margins), and keep long content from overflowing. */
+.wemo-md > :first-child {
+  margin-top: 0;
+}
+.wemo-md > :last-child {
+  margin-bottom: 0;
+}
+.wemo-md p,
+.wemo-md ul,
+.wemo-md ol,
+.wemo-md pre,
+.wemo-md blockquote {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+}
+.wemo-md ul,
+.wemo-md ol {
+  padding-left: 1.25em;
+}
+.wemo-md li {
+  margin-bottom: 0.15em;
+}
+.wemo-md pre {
+  overflow-x: auto;
+}
+.wemo-md blockquote {
+  font-size: inherit;
+}
+.wemo-md code {
+  overflow-wrap: anywhere;
+}
+
 /* Diagram dot-mapping canvas + balloon markers (custom; not covered by Mantine). */
 .canvas {
   position: relative;

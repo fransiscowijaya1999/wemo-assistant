@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/connectivity/connectivity_controller.dart';
@@ -130,7 +131,13 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SelectableText(message.text, style: TextStyle(color: fg)),
+            // The model replies in markdown; render it so **bold**, lists and
+            // `code` don't show as literal characters. User-typed and error
+            // text stay plain (a pasted part number shouldn't be parsed).
+            if (message.role == ChatRole.assistant && !message.isError)
+              _AssistantMarkdown(text: message.text, color: fg)
+            else
+              SelectableText(message.text, style: TextStyle(color: fg)),
             if (onRetry != null)
               Align(
                 alignment: Alignment.centerRight,
@@ -160,6 +167,46 @@ class _MessageBubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Renders an assistant reply as markdown, tinted to the bubble's foreground
+/// colour and with tight in-bubble spacing. Selectable, like the old plain text.
+class _AssistantMarkdown extends StatelessWidget {
+  const _AssistantMarkdown({required this.text, required this.color});
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(color: color);
+    final codeBg = color.withValues(alpha: 0.10);
+    final sheet = MarkdownStyleSheet.fromTheme(theme).copyWith(
+      p: base,
+      listBullet: base,
+      strong: base.copyWith(fontWeight: FontWeight.bold),
+      em: base.copyWith(fontStyle: FontStyle.italic),
+      a: base.copyWith(decoration: TextDecoration.underline),
+      blockquote: base,
+      code: base.copyWith(fontFamily: 'monospace', backgroundColor: codeBg, height: 1.35),
+      codeblockDecoration: BoxDecoration(
+        color: codeBg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(left: BorderSide(color: color.withValues(alpha: 0.35), width: 3)),
+      ),
+      // Chat bubbles are tight: no leading/trailing block padding, snug lists.
+      blockSpacing: 6,
+      listIndent: 20,
+    );
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: sheet,
+      fitContent: true,
     );
   }
 }

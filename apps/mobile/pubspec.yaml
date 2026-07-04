@@ -50,6 +50,10 @@ dependencies:
   # Lightweight DI + state (ChangeNotifier), no heavier framework.
   provider: ^6.1.2
 
+  # Renders the assistant's markdown replies (bold / lists / `code`) in the chat
+  # bubble. Maintained fork of the discontinued official `flutter_markdown`.
+  flutter_markdown_plus: ^1.0.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
