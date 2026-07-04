@@ -30,3 +30,25 @@ bun run db:generate      # generate SQL migrations from the Drizzle schema
 #   wrangler r2 bucket create wemo-catalog-images
 bun run dev
 ```
+
+## Backup / restore
+
+Snapshot the whole catalog from one deployment and replay it into another over HTTP — so the
+token-expensive AI ingest done in **dev** isn't lost when moving to **prod** (no re-extraction). One
+JSON archive holds the 13 catalog tables + every referenced R2 diagram image (base64); it excludes
+`app_settings` (AI secrets) and `users` (auth). Both routes are `requireAdmin`.
+
+```bash
+cd apps/backend
+
+# Backup — writes ./backups/wemo-<timestamp>.json (gitignored)
+bun run backup                                          # local dev (127.0.0.1:8787, dev-admin-key)
+ADMIN_TOKEN=<prod-token> bun run backup https://prod    # a specific deployment
+
+# Restore — idempotent upsert by primary key (safe to re-run)
+bun run restore backups/wemo-<timestamp>.json                                 # into local dev
+ADMIN_TOKEN=<prod-token> bun run restore backups/wemo-<timestamp>.json https://prod
+```
+
+The dev server (`bun run dev`) must be running for the local commands. Scripts default to `127.0.0.1`
+(not `localhost`) because Node's fetch prefers IPv6 `::1`, which wrangler dev doesn't bind on Windows.
