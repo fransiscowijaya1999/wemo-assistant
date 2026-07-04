@@ -197,6 +197,70 @@ export async function getPart(db: Db, args: { partId?: string; number?: string }
   };
 }
 
+/** All live machines with how many live assemblies each has. Ground truth for
+ * "what machines/models do I have". */
+export async function listMachines(db: Db) {
+  const rows = await db
+    .select({ id: machines.id, brand: machines.brand, model: machines.model })
+    .from(machines)
+    .where(isNull(machines.deletedAt));
+  const counts = await db
+    .select({ machineId: assemblies.machineId, c: sql<number>`count(*)` })
+    .from(assemblies)
+    .where(isNull(assemblies.deletedAt))
+    .groupBy(assemblies.machineId);
+  const cmap = new Map(counts.map((r) => [r.machineId, Number(r.c)]));
+  return rows
+    .map((m) => ({ id: m.id, name: `${m.brand} ${m.model}`, assemblyCount: cmap.get(m.id) ?? 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Live assemblies for one machine, identified by id or by name (brand+model,
+ * case-insensitive substring). Ground truth for "what assemblies does X have". */
+export async function listAssemblies(db: Db, args: { machineId?: string; machine?: string }) {
+  const all = await db
+    .select({ id: machines.id, brand: machines.brand, model: machines.model })
+    .from(machines)
+    .where(isNull(machines.deletedAt));
+  let target = args.machineId ? all.find((m) => m.id === args.machineId) : undefined;
+  if (!target && args.machine) {
+    const q = args.machine.trim().toLowerCase();
+    target = all.find((m) => `${m.brand} ${m.model}`.toLowerCase().includes(q));
+  }
+  if (!target) {
+    return { error: 'machine not found', availableMachines: all.map((m) => `${m.brand} ${m.model}`) };
+  }
+  const rows = await db
+    .select({ code: assemblies.code, name: assemblies.name, groupType: assemblies.groupType })
+    .from(assemblies)
+    .where(and(eq(assemblies.machineId, target.id), isNull(assemblies.deletedAt)));
+  return {
+    machine: `${target.brand} ${target.model}`,
+    assemblies: rows.map((r) => ({ code: r.code, name: r.name, group: r.groupType })),
+  };
+}
+
+const LISTING_TOOL_DEFS: ChatToolDef[] = [
+  {
+    name: 'list_machines',
+    description:
+      'List ALL machines (motorcycle models) in the catalog, each with how many assemblies it has. Use this FIRST to answer "what machines/models do I have" or before claiming a model is or is not in the catalog — never guess a model\'s presence from part searches.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_assemblies',
+    description:
+      'List the assembly/diagram groups (code + name) for ONE machine. Identify the machine by `machineId` (from list_machines) or by `machine` name (e.g. "PCX160"). Use this to answer "what assemblies/diagrams does <model> have".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        machineId: { type: 'string', description: 'Machine id from list_machines.' },
+        machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160" or "BeAT".' },
+      },
+    },
+  },
+];
+
 export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
   {
     name: 'search_parts',
@@ -225,6 +289,7 @@ export const CATALOG_TOOL_DEFS: ChatToolDef[] = [
       },
     },
   },
+  ...LISTING_TOOL_DEFS,
 ];
 
 /** Bundles the tool executor with a citation collector for one chat turn. */
@@ -250,6 +315,13 @@ export function createCatalogToolset(db: Db): {
         if (part) cited.set(part.id, { partId: part.id, name: part.name, primaryNumber: part.primaryNumber });
         return part ?? { error: 'not found' };
       }
+      case 'list_machines':
+        return { machines: await listMachines(db) };
+      case 'list_assemblies':
+        return await listAssemblies(db, {
+          machineId: input.machineId ? String(input.machineId) : undefined,
+          machine: input.machine ? String(input.machine) : undefined,
+        });
       default:
         return { error: `unknown tool: ${name}` };
     }

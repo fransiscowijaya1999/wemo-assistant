@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { partNumbers, parts } from '../db/schema';
 import type { ChatToolDef, ToolExecutor } from './chat';
-import { getPart, searchParts } from './catalog-tools';
+import { getPart, listAssemblies, listMachines, searchParts } from './catalog-tools';
 import type { CorrectionProposal, NumberKind } from '../services/corrections';
 
 // ADMIN-facing assistant toolset. Unlike the clerk toolset, the admin may correct
@@ -34,6 +34,24 @@ async function partLabel(db: Db, partId: string): Promise<string> {
 }
 
 const READ_TOOL_DEFS: ChatToolDef[] = [
+  {
+    name: 'list_machines',
+    description:
+      'List ALL machines (motorcycle models) in the catalog, each with how many assemblies it has. Use this FIRST to answer "what machines/models do I have" or before claiming a model is or is not present — never guess a model\'s presence from part searches.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_assemblies',
+    description:
+      'List the assembly/diagram groups (code + name) for ONE machine, identified by `machineId` (from list_machines) or by `machine` name (e.g. "PCX160"). Use to answer "what assemblies/diagrams does <model> have".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        machineId: { type: 'string', description: 'Machine id from list_machines.' },
+        machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160".' },
+      },
+    },
+  },
   {
     name: 'search_parts',
     description:
@@ -141,6 +159,13 @@ export function createAdminToolset(db: Db): {
 
   const execute: ToolExecutor = async (name, input) => {
     switch (name) {
+      case 'list_machines':
+        return { machines: await listMachines(db) };
+      case 'list_assemblies':
+        return await listAssemblies(db, {
+          machineId: input.machineId ? String(input.machineId) : undefined,
+          machine: input.machine ? String(input.machine) : undefined,
+        });
       case 'search_parts':
         return { results: await searchParts(db, String(input.query ?? '')) };
       case 'get_part':
