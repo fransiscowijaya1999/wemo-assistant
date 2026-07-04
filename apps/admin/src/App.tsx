@@ -161,7 +161,7 @@ function Shell() {
                   onGoToIngest={() => setTab('ingest')}
                 />
               </Tabs.Panel>
-              <Tabs.Panel value="assistant" pt="md">
+              <Tabs.Panel value="assistant" pt="md" keepMounted>
                 <AssistantView />
               </Tabs.Panel>
               <Tabs.Panel value="settings" pt="md">
