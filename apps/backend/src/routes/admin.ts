@@ -4,6 +4,7 @@ import { getChatProvider, resolveAiConfig } from '../ai';
 import type { ChatMessage } from '../ai/chat';
 import { createAdminToolset } from '../ai/admin-tools';
 import { applyCorrection, ApplyError, correctionProposal } from '../services/corrections';
+import { buildBackup, restoreBackup, RestoreError } from '../services/backup';
 import { getDb } from '../db/client';
 import { requireAdmin } from '../middleware/auth';
 
@@ -83,5 +84,28 @@ adminRoute.post('/corrections/apply', requireAdmin, async (c) => {
   } catch (e) {
     if (e instanceof ApplyError) return c.json({ error: e.message }, 409);
     return c.json({ error: 'apply failed', detail: String(e) }, 500);
+  }
+});
+
+// --- Backup / restore (admin only) ---
+// Snapshot the whole catalog (13 data tables + R2 diagram images) from one deployment
+// and replay it into another over HTTP — so token-expensive ingest done in dev isn't
+// lost when moving to prod. Excludes app_settings (AI secrets) + users (auth).
+
+adminRoute.get('/backup', requireAdmin, async (c) => {
+  const archive = await buildBackup(getDb(c.env), c.env.IMAGES);
+  const stamp = new Date(archive.exportedAt).toISOString().slice(0, 10);
+  c.header('Content-Disposition', `attachment; filename="wemo-backup-${stamp}.json"`);
+  return c.json(archive);
+});
+
+adminRoute.post('/restore', requireAdmin, async (c) => {
+  const archive = await c.req.json().catch(() => null);
+  try {
+    const result = await restoreBackup(getDb(c.env), c.env.IMAGES, archive);
+    return c.json({ ok: true, ...result });
+  } catch (e) {
+    if (e instanceof RestoreError) return c.json({ error: e.message }, 400);
+    return c.json({ error: 'restore failed', detail: String(e) }, 500);
   }
 });
