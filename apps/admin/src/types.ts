@@ -152,7 +152,8 @@ export type CorrectionProposal =
   | { type: 'rename'; partId: string; nameNormalized?: string | null; category?: string | null; notes?: string | null }
   | { type: 'add_alias'; partId: string; term: string; lang?: string | null }
   | { type: 'add_number'; partId: string; value: string; kind?: NumberKind; brand?: string | null }
-  | { type: 'edit_number'; partId: string; value: string; newValue?: string; kind?: NumberKind; brand?: string | null };
+  | { type: 'edit_number'; partId: string; value: string; newValue?: string; kind?: NumberKind; brand?: string | null }
+  | { type: 'merge'; sourcePartId: string; targetPartId: string };
 
 export type Proposal = {
   id: string;

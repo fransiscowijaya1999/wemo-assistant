@@ -15,7 +15,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core';
-import { IconCheck, IconRobot, IconSend, IconSparkles, IconX } from '@tabler/icons-react';
+import { IconArrowRight, IconCheck, IconRobot, IconSend, IconSparkles, IconX } from '@tabler/icons-react';
 import { api } from './api';
 import { notifyError, notifySuccess } from './notify';
 import type { ChatMessage, Proposal } from './types';
@@ -28,6 +28,7 @@ const TYPE_LABEL: Record<string, string> = {
   add_alias: 'Add alias',
   add_number: 'Add number',
   edit_number: 'Edit number',
+  merge: 'Merge duplicate',
 };
 
 const SUGGESTIONS = [
@@ -42,6 +43,7 @@ function fmt(v: unknown): string {
 }
 
 function ProposalCard({ p, onApprove, onReject }: { p: TrackedProposal; onApprove: () => void; onReject: () => void }) {
+  const isMerge = p.proposal.type === 'merge';
   const keys = [...new Set([...Object.keys(p.before ?? {}), ...Object.keys(p.after ?? {})])];
   return (
     <Card withBorder radius="md" padding="sm">
@@ -49,23 +51,48 @@ function ProposalCard({ p, onApprove, onReject }: { p: TrackedProposal; onApprov
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Box>
             <Group gap={6}>
-              <Badge size="sm" variant="light">
+              <Badge size="sm" variant="light" color={isMerge ? 'orange' : undefined}>
                 {TYPE_LABEL[p.proposal.type] ?? p.proposal.type}
               </Badge>
               <Text fw={600} size="sm">
                 {p.summary}
               </Text>
             </Group>
-            <Text size="xs" c="dimmed" ff="monospace">
-              {p.partLabel}
-            </Text>
+            {!isMerge && (
+              <Text size="xs" c="dimmed" ff="monospace">
+                {p.partLabel}
+              </Text>
+            )}
           </Box>
           {p.status === 'applied' && <Badge color="green" leftSection={<IconCheck size={12} />}>Applied</Badge>}
           {p.status === 'rejected' && <Badge color="gray">Rejected</Badge>}
           {p.status === 'error' && <Badge color="red">Failed</Badge>}
         </Group>
 
-        {keys.length > 0 && (
+        {isMerge && (
+          <Box p="xs" style={{ background: 'var(--mantine-color-orange-light)', borderRadius: 6 }}>
+            <Text size="xs" c="dimmed">
+              Remove (its data moves over)
+            </Text>
+            <Text size="sm" td="line-through" c="dimmed" ff="monospace">
+              {String(p.before?.remove ?? '')}
+            </Text>
+            <Group gap={6} mt={4} align="center">
+              <IconArrowRight size={14} />
+              <Text size="xs" c="dimmed">
+                Keep
+              </Text>
+            </Group>
+            <Text size="sm" fw={600} ff="monospace">
+              {String(p.after?.keep ?? '')}
+            </Text>
+            <Text size="xs" mt={4}>
+              Moves: {String(p.after?.moves ?? '')}
+            </Text>
+          </Box>
+        )}
+
+        {!isMerge && keys.length > 0 && (
           <Table withTableBorder withColumnBorders styles={{ td: { fontSize: 12, padding: '4px 8px' } }}>
             <Table.Thead>
               <Table.Tr>

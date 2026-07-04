@@ -3,6 +3,7 @@ import type { Db } from '../db/client';
 import { partNumbers, parts } from '../db/schema';
 import type { ChatToolDef, ToolExecutor } from './chat';
 import { getAssembly, getPart, listAssemblies, listMachines, searchParts } from './catalog-tools';
+import { mergePreview } from '../services/corrections';
 import type { CorrectionProposal, NumberKind } from '../services/corrections';
 
 // ADMIN-facing assistant toolset. Unlike the clerk toolset, the admin may correct
@@ -150,6 +151,19 @@ const PROPOSE_TOOL_DEFS: ChatToolDef[] = [
       required: ['partId', 'value'],
     },
   },
+  {
+    name: 'propose_merge',
+    description:
+      'Propose MERGING two duplicate canonical parts that are really the same physical part (e.g. the same part catalogued twice, or interchangeable numbers that should live on one part). Everything the SOURCE owns — all part numbers, aliases, color variants, and diagram positions — moves to the TARGET (the canonical part to keep), and the source is retired. Look up BOTH parts (search_parts/get_part) and be confident they are the same before proposing. Pick the target as the better-named / more complete part. NEVER merge unless the admin asked or clearly confirmed the two are identical.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourcePartId: { type: 'string', description: 'The duplicate part to remove (its data moves to the target).' },
+        targetPartId: { type: 'string', description: 'The canonical part to keep.' },
+      },
+      required: ['sourcePartId', 'targetPartId'],
+    },
+  },
 ];
 
 export const ADMIN_TOOL_DEFS: ChatToolDef[] = [...READ_TOOL_DEFS, ...PROPOSE_TOOL_DEFS];
@@ -162,8 +176,8 @@ export function createAdminToolset(db: Db): {
 } {
   const drafts: Proposal[] = [];
 
-  async function record(proposal: CorrectionProposal, summary: string, before?: Record<string, unknown>, after?: Record<string, unknown>) {
-    const p: Proposal = { id: crypto.randomUUID(), proposal, summary, partLabel: await partLabel(db, proposal.partId), before, after };
+  function record(proposal: CorrectionProposal, label: string, summary: string, before?: Record<string, unknown>, after?: Record<string, unknown>) {
+    const p: Proposal = { id: crypto.randomUUID(), proposal, summary, partLabel: label, before, after };
     drafts.push(p);
     return { ok: true, proposalId: p.id, note: 'Recorded as a proposal for the admin to review and approve. Not applied yet.' };
   }
@@ -210,20 +224,23 @@ export function createAdminToolset(db: Db): {
           }
         }
         if (!Object.keys(after).length) return { error: 'no fields to change' };
-        return record(proposal, 'Update part fields', before, after);
+        return record(proposal, await partLabel(db, partId), 'Update part fields', before, after);
       }
       case 'propose_add_alias': {
         const partId = String(input.partId ?? '');
         const term = str(input.term);
         if (!partId || !term) return { error: 'partId and term are required' };
-        return record({ type: 'add_alias', partId, term, lang: str(input.lang) ?? null }, `Add alias "${term}"`, undefined, { term });
+        if (!(await db.select({ id: parts.id }).from(parts).where(eq(parts.id, partId)).get())) return { error: 'part not found' };
+        return record({ type: 'add_alias', partId, term, lang: str(input.lang) ?? null }, await partLabel(db, partId), `Add alias "${term}"`, undefined, { term });
       }
       case 'propose_add_number': {
         const partId = String(input.partId ?? '');
         const value = str(input.value);
         if (!partId || !value) return { error: 'partId and value are required' };
+        if (!(await db.select({ id: parts.id }).from(parts).where(eq(parts.id, partId)).get())) return { error: 'part not found' };
         return record(
           { type: 'add_number', partId, value, kind: str(input.kind) as NumberKind | undefined, brand: str(input.brand) ?? null },
+          await partLabel(db, partId),
           `Add number ${value}`,
           undefined,
           { value, kind: str(input.kind) ?? 'oem', brand: str(input.brand) ?? null },
@@ -255,7 +272,34 @@ export function createAdminToolset(db: Db): {
           after.brand = str(input.brand) ?? null;
         }
         if (!Object.keys(after).length) return { error: 'no fields to change' };
-        return record(proposal, `Edit number ${value}`, before, after);
+        return record(proposal, await partLabel(db, partId), `Edit number ${value}`, before, after);
+      }
+      case 'propose_merge': {
+        const sourcePartId = String(input.sourcePartId ?? '');
+        const targetPartId = String(input.targetPartId ?? '');
+        if (!sourcePartId || !targetPartId) return { error: 'sourcePartId and targetPartId are required' };
+        if (sourcePartId === targetPartId) return { error: 'cannot merge a part into itself' };
+        const [srcRow, tgtRow] = await Promise.all([
+          db.select({ id: parts.id }).from(parts).where(and(eq(parts.id, sourcePartId), isNull(parts.deletedAt))).get(),
+          db.select({ id: parts.id }).from(parts).where(and(eq(parts.id, targetPartId), isNull(parts.deletedAt))).get(),
+        ]);
+        if (!srcRow) return { error: 'source part not found' };
+        if (!tgtRow) return { error: 'target part not found' };
+        const [sourceLabel, targetLabel, preview] = await Promise.all([
+          partLabel(db, sourcePartId),
+          partLabel(db, targetPartId),
+          mergePreview(db, sourcePartId),
+        ]);
+        return record(
+          { type: 'merge', sourcePartId, targetPartId },
+          `${sourceLabel}  →  ${targetLabel}`,
+          `Merge duplicate into ${targetLabel}`,
+          { remove: sourceLabel },
+          {
+            keep: targetLabel,
+            moves: `${preview.numbers} numbers, ${preview.aliases} aliases, ${preview.colorVariants} colors, ${preview.positions} positions`,
+          },
+        );
       }
       default:
         return { error: `unknown tool: ${name}` };
