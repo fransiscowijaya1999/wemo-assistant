@@ -216,10 +216,12 @@ assembliesRoute.put('/:id/dots', requireAdmin, async (c) => {
 
   const itemIds = items.map((i) => i.id);
   if (itemIds.length) await db.delete(dots).where(inArray(dots.assemblyItemId, itemIds));
-  if (body.dots.length) {
-    await db.insert(dots).values(
-      body.dots.map((d) => ({ assemblyItemId: d.assemblyItemId, x: d.x, y: d.y })),
-    );
+  // D1 caps bound parameters per statement (~100); a dense diagram can have dozens of
+  // dots and each row binds 6 columns, so insert in chunks to stay under the limit.
+  const DOTS_PER_INSERT = 15;
+  const rows = body.dots.map((d) => ({ assemblyItemId: d.assemblyItemId, x: d.x, y: d.y }));
+  for (let i = 0; i < rows.length; i += DOTS_PER_INSERT) {
+    await db.insert(dots).values(rows.slice(i, i + DOTS_PER_INSERT));
   }
   return c.json({ ok: true, count: body.dots.length });
 });
