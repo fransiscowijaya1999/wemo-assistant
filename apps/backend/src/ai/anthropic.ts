@@ -70,24 +70,82 @@ function thinkingFor(model: string): { thinking: { type: 'adaptive' } } | Record
 // its value. Streaming gets headers immediately — the SDK clears its timeout at that
 // point — so the timeout below only guards connection/first-byte, and generation can
 // run as long as it needs (bounded by max_tokens).
+// No stream event for this long = the connection is dead or the server hung; abort
+// and retry rather than waiting on finalMessage() forever. Generous because adaptive
+// thinking can pause visible output, but ping/delta events still flow while alive.
+const STALL_MS = 90_000;
+const MAX_ATTEMPTS = 3;
+
+class ExtractionStallError extends Error {
+  constructor(seconds: number) {
+    super(`extraction stream stalled — no data from the API for ${seconds}s`);
+  }
+}
+
+// Mid-stream failures are NOT retried by the SDK (its maxRetries only covers errors
+// before first byte), so we retry here: connection drops, stalls, and retryable API
+// statuses (rate limit / overloaded / server errors). Bad requests, auth failures,
+// max_tokens and schema mismatches are deterministic — fail fast on those.
+function isTransient(err: unknown): boolean {
+  if (err instanceof ExtractionStallError || err instanceof Anthropic.APIConnectionError) return true;
+  if (err instanceof Anthropic.APIError && typeof err.status === 'number') {
+    return err.status === 408 || err.status === 429 || err.status >= 500;
+  }
+  return false;
+}
+
 async function streamExtraction<T>(
   client: Anthropic,
   params: Anthropic.MessageStreamParams,
   schema: z.ZodType<T>,
 ): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await streamExtractionOnce(client, params, schema, attempt);
+    } catch (err) {
+      if (attempt >= MAX_ATTEMPTS || !isTransient(err)) throw err;
+      const delayMs = 2_000 * attempt;
+      console.log(`[extract] attempt ${attempt} failed (${err instanceof Error ? err.message : err}), retrying in ${delayMs / 1000}s`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
+async function streamExtractionOnce<T>(
+  client: Anthropic,
+  params: Anthropic.MessageStreamParams,
+  schema: z.ZodType<T>,
+  attempt: number,
+): Promise<T> {
   const started = Date.now();
   const stream = client.messages.stream(params);
   let events = 0;
+  let stalled = false;
+  let watchdog = setTimeout(onStall, STALL_MS);
+  function onStall() {
+    stalled = true;
+    stream.abort();
+  }
   stream.on('streamEvent', () => {
     events += 1;
+    clearTimeout(watchdog);
+    watchdog = setTimeout(onStall, STALL_MS);
     if (events % 500 === 0) {
       console.log(`[extract] streaming… ${events} events, ${Math.round((Date.now() - started) / 1000)}s`);
     }
   });
-  const msg = await stream.finalMessage();
+  let msg: Anthropic.Message;
+  try {
+    msg = await stream.finalMessage();
+  } catch (err) {
+    if (stalled) throw new ExtractionStallError(Math.round(STALL_MS / 1000));
+    throw err;
+  } finally {
+    clearTimeout(watchdog);
+  }
   console.log(
     `[extract] finished in ${Math.round((Date.now() - started) / 1000)}s ` +
-      `(stop=${msg.stop_reason}, out=${msg.usage.output_tokens} tokens)`,
+      `(attempt=${attempt}, stop=${msg.stop_reason}, out=${msg.usage.output_tokens} tokens)`,
   );
   if (msg.stop_reason === 'max_tokens') {
     throw new Error('extraction hit max_tokens before finishing — page too dense for one call');
@@ -99,7 +157,21 @@ async function streamExtraction<T>(
   if (!text) {
     throw new Error(`extraction returned no structured output (stop_reason=${msg.stop_reason})`);
   }
-  return schema.parse(JSON.parse(text));
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`extraction output is not valid JSON (stop_reason=${msg.stop_reason}, ${text.length} chars)`);
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    throw new Error(`extraction output failed schema validation — ${issues}`);
+  }
+  return parsed.data;
 }
 
 export function createAnthropicVisionProvider(
