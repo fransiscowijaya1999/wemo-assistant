@@ -65,7 +65,10 @@ assembliesRoute.get('/:id/full', async (c) => {
         .where(and(inArray(itemResolutions.assemblyItemId, itemIds), isNull(itemResolutions.deletedAt)))
     : [];
   const dotRows = itemIds.length
-    ? await db.select().from(dots).where(inArray(dots.assemblyItemId, itemIds))
+    ? await db
+        .select()
+        .from(dots)
+        .where(and(inArray(dots.assemblyItemId, itemIds), isNull(dots.deletedAt)))
     : [];
   const svc = await db
     .select()
@@ -215,7 +218,18 @@ assembliesRoute.put('/:id/dots', requireAdmin, async (c) => {
   }
 
   const itemIds = items.map((i) => i.id);
-  if (itemIds.length) await db.delete(dots).where(inArray(dots.assemblyItemId, itemIds));
+  // Soft-delete the current live dots (don't hard-delete): the clerk replica only
+  // learns a row is gone via a `deleted_at` tombstone in the sync delta. A hard delete
+  // leaves no tombstone, so the phone would keep the stale dot AND receive the freshly
+  // inserted one -> duplicated dots offline. Only touch live rows so we don't re-bump
+  // already-tombstoned rows into every future sync page.
+  const now = new Date();
+  if (itemIds.length) {
+    await db
+      .update(dots)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(and(inArray(dots.assemblyItemId, itemIds), isNull(dots.deletedAt)));
+  }
   // D1 caps bound parameters per statement (~100); a dense diagram can have dozens of
   // dots and each row binds 6 columns, so insert in chunks to stay under the limit.
   const DOTS_PER_INSERT = 15;
