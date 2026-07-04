@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { partNumbers, parts } from '../db/schema';
 import type { ChatToolDef, ToolExecutor } from './chat';
-import { getPart, listAssemblies, listMachines, searchParts } from './catalog-tools';
+import { getAssembly, getPart, listAssemblies, listMachines, searchParts } from './catalog-tools';
 import type { CorrectionProposal, NumberKind } from '../services/corrections';
 
 // ADMIN-facing assistant toolset. Unlike the clerk toolset, the admin may correct
@@ -49,6 +49,19 @@ const READ_TOOL_DEFS: ChatToolDef[] = [
       properties: {
         machineId: { type: 'string', description: 'Machine id from list_machines.' },
         machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160".' },
+      },
+    },
+  },
+  {
+    name: 'get_assembly',
+    description:
+      'List the PARTS in one assembly (each ref number → part name + primary number). Identify by `assemblyId`, or `machine` name + assembly `code` (e.g. "PCX160" + "E-4"). Use to answer "what parts are in <assembly>" and to check whether a part (e.g. a valve / "klep") is present before proposing to add it. Do NOT conclude a part is absent without opening the relevant assembly here (its name, e.g. "CAMSHAFT/VALVE", tells you which).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        assemblyId: { type: 'string', description: 'Assembly id, if known.' },
+        machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160".' },
+        code: { type: 'string', description: 'Assembly code, e.g. "E-4".' },
       },
     },
   },
@@ -165,6 +178,12 @@ export function createAdminToolset(db: Db): {
         return await listAssemblies(db, {
           machineId: input.machineId ? String(input.machineId) : undefined,
           machine: input.machine ? String(input.machine) : undefined,
+        });
+      case 'get_assembly':
+        return await getAssembly(db, {
+          assemblyId: input.assemblyId ? String(input.assemblyId) : undefined,
+          machine: input.machine ? String(input.machine) : undefined,
+          code: input.code ? String(input.code) : undefined,
         });
       case 'search_parts':
         return { results: await searchParts(db, String(input.query ?? '')) };

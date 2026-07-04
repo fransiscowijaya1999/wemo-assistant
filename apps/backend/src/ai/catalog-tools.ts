@@ -240,6 +240,78 @@ export async function listAssemblies(db: Db, args: { machineId?: string; machine
   };
 }
 
+/** The parts listed in one assembly (by assemblyId, or machine name + code).
+ * Ground truth for "what parts are in <assembly>" — e.g. the valves in CAMSHAFT/VALVE. */
+export async function getAssembly(db: Db, args: { assemblyId?: string; machine?: string; code?: string }) {
+  let matched: { id: string; code: string; name: string; machine: string }[] = [];
+  if (args.assemblyId) {
+    const a = await db
+      .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, brand: machines.brand, model: machines.model })
+      .from(assemblies)
+      .innerJoin(machines, eq(machines.id, assemblies.machineId))
+      .where(and(eq(assemblies.id, args.assemblyId), isNull(assemblies.deletedAt)))
+      .get();
+    if (a) matched = [{ id: a.id, code: a.code, name: a.name, machine: `${a.brand} ${a.model}` }];
+  } else if (args.code) {
+    const rows = await db
+      .select({ id: assemblies.id, code: assemblies.code, name: assemblies.name, brand: machines.brand, model: machines.model })
+      .from(assemblies)
+      .innerJoin(machines, eq(machines.id, assemblies.machineId))
+      .where(isNull(assemblies.deletedAt));
+    const code = args.code.trim().toLowerCase();
+    const mq = args.machine?.trim().toLowerCase();
+    matched = rows
+      .filter((r) => r.code.toLowerCase() === code && (!mq || `${r.brand} ${r.model}`.toLowerCase().includes(mq)))
+      .map((r) => ({ id: r.id, code: r.code, name: r.name, machine: `${r.brand} ${r.model}` }));
+  }
+  if (!matched.length) return { error: 'assembly not found' };
+
+  // Union items across any assemblies that share this machine+code (continuation pages), by ref.
+  const ids = matched.map((m) => m.id);
+  const items = await db
+    .select({
+      refNo: assemblyItems.refNo,
+      partId: assemblyItems.basePartId,
+      nameRaw: parts.nameRaw,
+      nameNormalized: parts.nameNormalized,
+    })
+    .from(assemblyItems)
+    .leftJoin(parts, eq(parts.id, assemblyItems.basePartId))
+    .where(and(inArray(assemblyItems.assemblyId, ids), isNull(assemblyItems.deletedAt)));
+
+  const partIds = items.map((i) => i.partId).filter((x): x is string => !!x);
+  const numRows = partIds.length
+    ? await db
+        .select({ partId: partNumbers.partId, value: partNumbers.value, isPrimary: partNumbers.isPrimary })
+        .from(partNumbers)
+        .where(and(inArray(partNumbers.partId, partIds), isNull(partNumbers.deletedAt)))
+    : [];
+  const primary = new Map<string, string>();
+  const anyNum = new Map<string, string>();
+  for (const n of numRows) {
+    if (!anyNum.has(n.partId)) anyNum.set(n.partId, n.value);
+    if (n.isPrimary && !primary.has(n.partId)) primary.set(n.partId, n.value);
+  }
+
+  const byRef = new Map<string, { refNo: string; partId: string | null; name: string | null; number: string | null }>();
+  for (const it of items) {
+    if (byRef.has(it.refNo)) continue;
+    byRef.set(it.refNo, {
+      refNo: it.refNo,
+      partId: it.partId,
+      name: it.nameNormalized ?? it.nameRaw ?? null,
+      number: it.partId ? primary.get(it.partId) ?? anyNum.get(it.partId) ?? null : null,
+    });
+  }
+  const sorted = [...byRef.values()].sort((a, b) => {
+    const na = Number(a.refNo);
+    const nb = Number(b.refNo);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    return a.refNo.localeCompare(b.refNo);
+  });
+  return { machine: matched[0].machine, assembly: { code: matched[0].code, name: matched[0].name }, items: sorted };
+}
+
 const LISTING_TOOL_DEFS: ChatToolDef[] = [
   {
     name: 'list_machines',
@@ -256,6 +328,19 @@ const LISTING_TOOL_DEFS: ChatToolDef[] = [
       properties: {
         machineId: { type: 'string', description: 'Machine id from list_machines.' },
         machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160" or "BeAT".' },
+      },
+    },
+  },
+  {
+    name: 'get_assembly',
+    description:
+      'List the PARTS in one assembly (each ref number → part name + primary number). Identify it by `assemblyId`, or by `machine` name + assembly `code` (e.g. machine "PCX160", code "E-4"). Use this to answer "what parts are in <assembly>" and to check whether a specific part (e.g. a valve / "klep") is present — assembly names like "CAMSHAFT/VALVE" tell you which assembly to open. Do NOT conclude a part is absent from a machine without opening its relevant assembly here.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        assemblyId: { type: 'string', description: 'Assembly id, if known.' },
+        machine: { type: 'string', description: 'Machine name/model, e.g. "PCX160".' },
+        code: { type: 'string', description: 'Assembly code, e.g. "E-4".' },
       },
     },
   },
@@ -321,6 +406,12 @@ export function createCatalogToolset(db: Db): {
         return await listAssemblies(db, {
           machineId: input.machineId ? String(input.machineId) : undefined,
           machine: input.machine ? String(input.machine) : undefined,
+        });
+      case 'get_assembly':
+        return await getAssembly(db, {
+          assemblyId: input.assemblyId ? String(input.assemblyId) : undefined,
+          machine: input.machine ? String(input.machine) : undefined,
+          code: input.code ? String(input.code) : undefined,
         });
       default:
         return { error: `unknown tool: ${name}` };
