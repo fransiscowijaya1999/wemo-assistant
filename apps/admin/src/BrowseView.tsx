@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   Paper,
   Select,
   SimpleGrid,
@@ -15,10 +16,28 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core';
-import { IconBarcode, IconPhotoScan, IconPlus, IconSearch, IconStack2 } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
+import {
+  IconBarcode,
+  IconDeviceFloppy,
+  IconPencil,
+  IconPhotoScan,
+  IconPlus,
+  IconSearch,
+  IconStack2,
+  IconTrash,
+} from '@tabler/icons-react';
 import { api, imageUrl } from './api';
 import { notifySuccess } from './notify';
-import type { Assembly, FullAssembly, MachineVariant, PartFull, Resolution, SearchResult } from './types';
+import type {
+  Assembly,
+  FullAssembly,
+  Machine,
+  MachineVariant,
+  PartFull,
+  Resolution,
+  SearchResult,
+} from './types';
 
 function serialText(from: string | null, to: string | null): string {
   if (from && to) return ` · s/n ${from}–${to}`;
@@ -64,18 +83,26 @@ function StatTile({ label, value }: { label: string; value: number }) {
 
 export function BrowseView({
   machineId,
+  machine,
   refreshKey,
-  onMachineCreated,
+  onMachinesChanged,
   onGoToIngest,
 }: {
   machineId: string;
+  machine?: Machine;
   refreshKey: number;
-  onMachineCreated: () => void;
+  onMachinesChanged: () => void;
   onGoToIngest?: () => void;
 }) {
   const [brand, setBrand] = useState('Honda');
   const [model, setModel] = useState('');
   const [machineErr, setMachineErr] = useState('');
+  const [editBrand, setEditBrand] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editErr, setEditErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const [assemblies, setAssemblies] = useState<Assembly[]>([]);
   const [variants, setVariants] = useState<MachineVariant[]>([]);
   const [variantId, setVariantId] = useState<string | null>(null);
@@ -105,17 +132,56 @@ export function BrowseView({
     api.listVariants(machineId).then(setVariants).catch((e) => setBrowseErr(String(e)));
   }, [machineId, refreshKey]);
 
+  useEffect(() => {
+    setEditBrand(machine?.brand ?? '');
+    setEditModel(machine?.model ?? '');
+    setEditErr('');
+  }, [machine?.id, machine?.brand, machine?.model]);
+
   async function createMachine() {
     setMachineErr('');
     try {
       await api.createMachine({ brand, model });
       notifySuccess(`Created ${brand} ${model}`);
       setModel('');
-      onMachineCreated();
+      onMachinesChanged();
     } catch (e) {
       setMachineErr(String(e));
     }
   }
+
+  async function saveMachine() {
+    if (!machine) return;
+    setEditErr('');
+    setSaving(true);
+    try {
+      await api.updateMachine(machine.id, { brand: editBrand.trim(), model: editModel.trim() });
+      notifySuccess(`Saved ${editBrand.trim()} ${editModel.trim()}`);
+      onMachinesChanged();
+    } catch (e) {
+      setEditErr(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMachine() {
+    if (!machine) return;
+    setDeleting(true);
+    try {
+      await api.deleteMachine(machine.id);
+      notifySuccess(`Deleted ${machine.brand} ${machine.model}`);
+      closeConfirm();
+      onMachinesChanged();
+    } catch (e) {
+      setEditErr(String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const editDirty =
+    !!machine && (editBrand.trim() !== machine.brand || editModel.trim() !== machine.model);
 
   async function openAssembly(id: string | null, filter?: { variantId?: string; serial?: string }) {
     setAsmId(id);
@@ -200,6 +266,70 @@ export function BrowseView({
           )}
         </Stack>
       </Card>
+
+      {machine && (
+        <Card withBorder>
+          <Stack gap="sm">
+            <Group gap="xs">
+              <ThemeIcon variant="light" size="sm">
+                <IconPencil size={14} />
+              </ThemeIcon>
+              <Title order={5}>Edit machine</Title>
+            </Group>
+            <Group align="flex-end">
+              <TextInput
+                label="Brand"
+                value={editBrand}
+                onChange={(e) => setEditBrand(e.currentTarget.value)}
+              />
+              <TextInput
+                label="Model"
+                value={editModel}
+                onChange={(e) => setEditModel(e.currentTarget.value)}
+              />
+              <Button
+                leftSection={<IconDeviceFloppy size={16} />}
+                onClick={saveMachine}
+                loading={saving}
+                disabled={!editDirty || !editBrand.trim() || !editModel.trim()}
+              >
+                Save
+              </Button>
+              <Button
+                variant="light"
+                color="red"
+                leftSection={<IconTrash size={16} />}
+                onClick={openConfirm}
+              >
+                Delete machine
+              </Button>
+            </Group>
+            {editErr && (
+              <Text size="sm" c="red">
+                {editErr}
+              </Text>
+            )}
+          </Stack>
+        </Card>
+      )}
+
+      <Modal opened={confirmOpen} onClose={closeConfirm} title="Delete machine" centered>
+        <Stack gap="sm">
+          <Text size="sm">
+            Delete <b>{machine?.brand} {machine?.model}</b>? This removes the machine and all its
+            diagrams, positions, variants and colors from every device on the next sync. Canonical
+            parts (shared across machines) are kept. This cannot be undone from the app.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeConfirm} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button color="red" leftSection={<IconTrash size={16} />} onClick={deleteMachine} loading={deleting}>
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Card withBorder>
         <Stack gap="sm">

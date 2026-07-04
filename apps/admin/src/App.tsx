@@ -156,8 +156,9 @@ function Shell() {
               <Tabs.Panel value="browse" pt="md">
                 <BrowseView
                   machineId={machineId}
+                  machine={machines.find((m) => m.id === machineId)}
                   refreshKey={refreshKey}
-                  onMachineCreated={refreshMachines}
+                  onMachinesChanged={refreshMachines}
                   onGoToIngest={() => setTab('ingest')}
                 />
               </Tabs.Panel>
