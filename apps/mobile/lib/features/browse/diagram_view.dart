@@ -72,12 +72,16 @@ class _DiagramViewState extends State<DiagramView> {
       ..scaleByDouble(_doubleTapScale, _doubleTapScale, _doubleTapScale, 1);
   }
 
-  /// Center [dot] in the (w×h) viewport at [_focusScale], clamped so the view
-  /// never pans past the image edges.
-  void _focusOn(DiagramDot dot, double w, double h) {
+  /// Center [dot] in the full [boxW]×[boxH] viewport at [_focusScale], clamped
+  /// so the view never pans past the (scaled) viewport edges. The dot's scene
+  /// position accounts for the letterbox offset ([dx],[dy]) of the fitted image.
+  void _focusOn(
+      DiagramDot dot, double w, double h, double dx, double dy, double boxW, double boxH) {
     const s = _focusScale;
-    final tx = (w / 2 - dot.x * w * s).clamp(w - w * s, 0.0);
-    final ty = (h / 2 - dot.y * h * s).clamp(h - h * s, 0.0);
+    final sceneX = dx + dot.x * w;
+    final sceneY = dy + dot.y * h;
+    final tx = (boxW / 2 - sceneX * s).clamp(boxW - boxW * s, 0.0);
+    final ty = (boxH / 2 - sceneY * s).clamp(boxH - boxH * s, 0.0);
     _transform.value = Matrix4.identity()
       ..translateByDouble(tx, ty, 0, 1)
       ..scaleByDouble(s, s, s, 1);
@@ -87,67 +91,80 @@ class _DiagramViewState extends State<DiagramView> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Fit the image inside the available box, preserving aspect ratio.
-        var w = constraints.maxWidth;
+        // The viewport fills the whole available box — so zooming reveals content
+        // across the entire area, not just within the fitted image rectangle.
+        final boxW = constraints.maxWidth;
+        final boxH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : constraints.maxWidth / widget.aspectRatio;
+
+        // Fit the image inside the box, preserving aspect ratio, then letterbox
+        // (center) it — dots and focus math offset by (dx, dy) to match.
+        var w = boxW;
         var h = w / widget.aspectRatio;
-        if (constraints.maxHeight.isFinite && h > constraints.maxHeight) {
-          h = constraints.maxHeight;
+        if (h > boxH) {
+          h = boxH;
           w = h * widget.aspectRatio;
         }
+        final dx = (boxW - w) / 2;
+        final dy = (boxH - h) / 2;
 
         if (widget.focusTick != _handledFocusTick) {
           _handledFocusTick = widget.focusTick;
           final dot = widget.focusDot;
           if (dot != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _focusOn(dot, w, h);
+              if (mounted) _focusOn(dot, w, h, dx, dy, boxW, boxH);
             });
           }
         }
 
-        return Center(
-          child: GestureDetector(
-            onDoubleTapDown: (d) => _doubleTapLocal = d.localPosition,
-            onDoubleTap: _onDoubleTap,
-            child: InteractiveViewer(
-              transformationController: _transform,
-              minScale: 1,
-              maxScale: _maxScale,
-              child: SizedBox(
-                width: w,
-                height: h,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                        child: Image.file(widget.image, fit: BoxFit.fill, gaplessPlayback: true)),
-                    ValueListenableBuilder<Matrix4>(
-                      valueListenable: _transform,
-                      builder: (context, matrix, _) {
-                        final zoom = matrix.getMaxScaleOnAxis();
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            for (final dot in widget.dots)
-                              Positioned(
-                                left: dot.x * w - _DotMarker.hitRadius,
-                                top: dot.y * h - _DotMarker.hitRadius,
-                                child: Transform.scale(
-                                  scale: 1 / zoom,
-                                  child: _DotMarker(
-                                    label: dot.refNo,
-                                    selected: dot.itemId == widget.selectedItemId,
-                                    dimmed: widget.dimmedItemIds.contains(dot.itemId),
-                                    onTap: () => widget.onTapDot(dot),
-                                  ),
+        return GestureDetector(
+          onDoubleTapDown: (d) => _doubleTapLocal = d.localPosition,
+          onDoubleTap: _onDoubleTap,
+          child: InteractiveViewer(
+            transformationController: _transform,
+            minScale: 1,
+            maxScale: _maxScale,
+            child: SizedBox(
+              width: boxW,
+              height: boxH,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: dx,
+                    top: dy,
+                    width: w,
+                    height: h,
+                    child: Image.file(widget.image, fit: BoxFit.fill, gaplessPlayback: true),
+                  ),
+                  ValueListenableBuilder<Matrix4>(
+                    valueListenable: _transform,
+                    builder: (context, matrix, _) {
+                      final zoom = matrix.getMaxScaleOnAxis();
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          for (final dot in widget.dots)
+                            Positioned(
+                              left: dx + dot.x * w - _DotMarker.hitRadius,
+                              top: dy + dot.y * h - _DotMarker.hitRadius,
+                              child: Transform.scale(
+                                scale: 1 / zoom,
+                                child: _DotMarker(
+                                  label: dot.refNo,
+                                  selected: dot.itemId == widget.selectedItemId,
+                                  dimmed: widget.dimmedItemIds.contains(dot.itemId),
+                                  onTap: () => widget.onTapDot(dot),
                                 ),
                               ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),
