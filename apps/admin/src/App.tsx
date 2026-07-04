@@ -19,6 +19,7 @@ import {
   IconFiles,
   IconMapPin,
   IconMoon,
+  IconPalette,
   IconPhotoScan,
   IconSearch,
   IconSettings,
@@ -29,6 +30,7 @@ import type { Machine } from './types';
 import { notifyError } from './notify';
 import { theme } from './theme';
 import { IngestView } from './IngestView';
+import { ColorIngestView } from './ColorIngestView';
 import { BatchIngest } from './BatchIngest';
 import { DotEditor } from './DotEditor';
 import { BrowseView } from './BrowseView';
@@ -120,6 +122,9 @@ function Shell() {
                 <Tabs.Tab value="batch" leftSection={<IconFiles size={16} />}>
                   Batch (PDF)
                 </Tabs.Tab>
+                <Tabs.Tab value="color" leftSection={<IconPalette size={16} />}>
+                  Color index
+                </Tabs.Tab>
                 <Tabs.Tab value="dots" leftSection={<IconMapPin size={16} />}>
                   Dot mapping
                 </Tabs.Tab>
@@ -136,6 +141,9 @@ function Shell() {
               </Tabs.Panel>
               <Tabs.Panel value="batch" pt="md">
                 {machineId ? <BatchIngest machineId={machineId} onCommitted={bump} /> : <NeedMachine />}
+              </Tabs.Panel>
+              <Tabs.Panel value="color" pt="md">
+                {machineId ? <ColorIngestView machineId={machineId} onCommitted={bump} /> : <NeedMachine />}
               </Tabs.Panel>
               <Tabs.Panel value="dots" pt="md">
                 {machineId ? <DotEditor machineId={machineId} refreshKey={refreshKey} /> : <NeedMachine />}
