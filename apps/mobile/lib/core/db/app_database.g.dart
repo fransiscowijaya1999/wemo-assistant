@@ -4521,6 +4521,20 @@ class $PartsTable extends Parts with TableInfo<$PartsTable, Part> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isCurrentReplacementMeta =
+      const VerificationMeta('isCurrentReplacement');
+  @override
+  late final GeneratedColumn<bool> isCurrentReplacement = GeneratedColumn<bool>(
+    'is_current_replacement',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_current_replacement" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     updatedAt,
@@ -4531,6 +4545,7 @@ class $PartsTable extends Parts with TableInfo<$PartsTable, Part> {
     category,
     specs,
     notes,
+    isCurrentReplacement,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4598,6 +4613,15 @@ class $PartsTable extends Parts with TableInfo<$PartsTable, Part> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('is_current_replacement')) {
+      context.handle(
+        _isCurrentReplacementMeta,
+        isCurrentReplacement.isAcceptableOrUnknown(
+          data['is_current_replacement']!,
+          _isCurrentReplacementMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4639,6 +4663,10 @@ class $PartsTable extends Parts with TableInfo<$PartsTable, Part> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      isCurrentReplacement: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_current_replacement'],
+      )!,
     );
   }
 
@@ -4657,6 +4685,7 @@ class Part extends DataClass implements Insertable<Part> {
   final String? category;
   final String? specs;
   final String? notes;
+  final bool isCurrentReplacement;
   const Part({
     required this.updatedAt,
     this.deletedAt,
@@ -4666,6 +4695,7 @@ class Part extends DataClass implements Insertable<Part> {
     this.category,
     this.specs,
     this.notes,
+    required this.isCurrentReplacement,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4688,6 +4718,7 @@ class Part extends DataClass implements Insertable<Part> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    map['is_current_replacement'] = Variable<bool>(isCurrentReplacement);
     return map;
   }
 
@@ -4711,6 +4742,7 @@ class Part extends DataClass implements Insertable<Part> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      isCurrentReplacement: Value(isCurrentReplacement),
     );
   }
 
@@ -4728,6 +4760,9 @@ class Part extends DataClass implements Insertable<Part> {
       category: serializer.fromJson<String?>(json['category']),
       specs: serializer.fromJson<String?>(json['specs']),
       notes: serializer.fromJson<String?>(json['notes']),
+      isCurrentReplacement: serializer.fromJson<bool>(
+        json['isCurrentReplacement'],
+      ),
     );
   }
   @override
@@ -4742,6 +4777,7 @@ class Part extends DataClass implements Insertable<Part> {
       'category': serializer.toJson<String?>(category),
       'specs': serializer.toJson<String?>(specs),
       'notes': serializer.toJson<String?>(notes),
+      'isCurrentReplacement': serializer.toJson<bool>(isCurrentReplacement),
     };
   }
 
@@ -4754,6 +4790,7 @@ class Part extends DataClass implements Insertable<Part> {
     Value<String?> category = const Value.absent(),
     Value<String?> specs = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    bool? isCurrentReplacement,
   }) => Part(
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -4765,6 +4802,7 @@ class Part extends DataClass implements Insertable<Part> {
     category: category.present ? category.value : this.category,
     specs: specs.present ? specs.value : this.specs,
     notes: notes.present ? notes.value : this.notes,
+    isCurrentReplacement: isCurrentReplacement ?? this.isCurrentReplacement,
   );
   Part copyWithCompanion(PartsCompanion data) {
     return Part(
@@ -4778,6 +4816,9 @@ class Part extends DataClass implements Insertable<Part> {
       category: data.category.present ? data.category.value : this.category,
       specs: data.specs.present ? data.specs.value : this.specs,
       notes: data.notes.present ? data.notes.value : this.notes,
+      isCurrentReplacement: data.isCurrentReplacement.present
+          ? data.isCurrentReplacement.value
+          : this.isCurrentReplacement,
     );
   }
 
@@ -4791,7 +4832,8 @@ class Part extends DataClass implements Insertable<Part> {
           ..write('nameNormalized: $nameNormalized, ')
           ..write('category: $category, ')
           ..write('specs: $specs, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('isCurrentReplacement: $isCurrentReplacement')
           ..write(')'))
         .toString();
   }
@@ -4806,6 +4848,7 @@ class Part extends DataClass implements Insertable<Part> {
     category,
     specs,
     notes,
+    isCurrentReplacement,
   );
   @override
   bool operator ==(Object other) =>
@@ -4818,7 +4861,8 @@ class Part extends DataClass implements Insertable<Part> {
           other.nameNormalized == this.nameNormalized &&
           other.category == this.category &&
           other.specs == this.specs &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.isCurrentReplacement == this.isCurrentReplacement);
 }
 
 class PartsCompanion extends UpdateCompanion<Part> {
@@ -4830,6 +4874,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
   final Value<String?> category;
   final Value<String?> specs;
   final Value<String?> notes;
+  final Value<bool> isCurrentReplacement;
   final Value<int> rowid;
   const PartsCompanion({
     this.updatedAt = const Value.absent(),
@@ -4840,6 +4885,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
     this.category = const Value.absent(),
     this.specs = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isCurrentReplacement = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PartsCompanion.insert({
@@ -4851,6 +4897,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
     this.category = const Value.absent(),
     this.specs = const Value.absent(),
     this.notes = const Value.absent(),
+    this.isCurrentReplacement = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : updatedAt = Value(updatedAt),
        id = Value(id),
@@ -4864,6 +4911,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
     Expression<String>? category,
     Expression<String>? specs,
     Expression<String>? notes,
+    Expression<bool>? isCurrentReplacement,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4875,6 +4923,8 @@ class PartsCompanion extends UpdateCompanion<Part> {
       if (category != null) 'category': category,
       if (specs != null) 'specs': specs,
       if (notes != null) 'notes': notes,
+      if (isCurrentReplacement != null)
+        'is_current_replacement': isCurrentReplacement,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4888,6 +4938,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
     Value<String?>? category,
     Value<String?>? specs,
     Value<String?>? notes,
+    Value<bool>? isCurrentReplacement,
     Value<int>? rowid,
   }) {
     return PartsCompanion(
@@ -4899,6 +4950,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
       category: category ?? this.category,
       specs: specs ?? this.specs,
       notes: notes ?? this.notes,
+      isCurrentReplacement: isCurrentReplacement ?? this.isCurrentReplacement,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4930,6 +4982,11 @@ class PartsCompanion extends UpdateCompanion<Part> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (isCurrentReplacement.present) {
+      map['is_current_replacement'] = Variable<bool>(
+        isCurrentReplacement.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4947,6 +5004,7 @@ class PartsCompanion extends UpdateCompanion<Part> {
           ..write('category: $category, ')
           ..write('specs: $specs, ')
           ..write('notes: $notes, ')
+          ..write('isCurrentReplacement: $isCurrentReplacement, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6885,6 +6943,417 @@ class ServiceItemsCompanion extends UpdateCompanion<ServiceItem> {
   }
 }
 
+class $PartSubstitutesTable extends PartSubstitutes
+    with TableInfo<$PartSubstitutesTable, PartSubstitute> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PartSubstitutesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _partIdMeta = const VerificationMeta('partId');
+  @override
+  late final GeneratedColumn<String> partId = GeneratedColumn<String>(
+    'part_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _substitutePartIdMeta = const VerificationMeta(
+    'substitutePartId',
+  );
+  @override
+  late final GeneratedColumn<String> substitutePartId = GeneratedColumn<String>(
+    'substitute_part_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    updatedAt,
+    deletedAt,
+    id,
+    partId,
+    substitutePartId,
+    note,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'part_substitutes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PartSubstitute> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('part_id')) {
+      context.handle(
+        _partIdMeta,
+        partId.isAcceptableOrUnknown(data['part_id']!, _partIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_partIdMeta);
+    }
+    if (data.containsKey('substitute_part_id')) {
+      context.handle(
+        _substitutePartIdMeta,
+        substitutePartId.isAcceptableOrUnknown(
+          data['substitute_part_id']!,
+          _substitutePartIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_substitutePartIdMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PartSubstitute map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PartSubstitute(
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      partId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}part_id'],
+      )!,
+      substitutePartId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}substitute_part_id'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+    );
+  }
+
+  @override
+  $PartSubstitutesTable createAlias(String alias) {
+    return $PartSubstitutesTable(attachedDatabase, alias);
+  }
+}
+
+class PartSubstitute extends DataClass implements Insertable<PartSubstitute> {
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String id;
+  final String partId;
+  final String substitutePartId;
+  final String? note;
+  const PartSubstitute({
+    required this.updatedAt,
+    this.deletedAt,
+    required this.id,
+    required this.partId,
+    required this.substitutePartId,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['id'] = Variable<String>(id);
+    map['part_id'] = Variable<String>(partId);
+    map['substitute_part_id'] = Variable<String>(substitutePartId);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  PartSubstitutesCompanion toCompanion(bool nullToAbsent) {
+    return PartSubstitutesCompanion(
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      id: Value(id),
+      partId: Value(partId),
+      substitutePartId: Value(substitutePartId),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory PartSubstitute.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PartSubstitute(
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      partId: serializer.fromJson<String>(json['partId']),
+      substitutePartId: serializer.fromJson<String>(json['substitutePartId']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'id': serializer.toJson<String>(id),
+      'partId': serializer.toJson<String>(partId),
+      'substitutePartId': serializer.toJson<String>(substitutePartId),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  PartSubstitute copyWith({
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? id,
+    String? partId,
+    String? substitutePartId,
+    Value<String?> note = const Value.absent(),
+  }) => PartSubstitute(
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    id: id ?? this.id,
+    partId: partId ?? this.partId,
+    substitutePartId: substitutePartId ?? this.substitutePartId,
+    note: note.present ? note.value : this.note,
+  );
+  PartSubstitute copyWithCompanion(PartSubstitutesCompanion data) {
+    return PartSubstitute(
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      id: data.id.present ? data.id.value : this.id,
+      partId: data.partId.present ? data.partId.value : this.partId,
+      substitutePartId: data.substitutePartId.present
+          ? data.substitutePartId.value
+          : this.substitutePartId,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PartSubstitute(')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('id: $id, ')
+          ..write('partId: $partId, ')
+          ..write('substitutePartId: $substitutePartId, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(updatedAt, deletedAt, id, partId, substitutePartId, note);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PartSubstitute &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.id == this.id &&
+          other.partId == this.partId &&
+          other.substitutePartId == this.substitutePartId &&
+          other.note == this.note);
+}
+
+class PartSubstitutesCompanion extends UpdateCompanion<PartSubstitute> {
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> id;
+  final Value<String> partId;
+  final Value<String> substitutePartId;
+  final Value<String?> note;
+  final Value<int> rowid;
+  const PartSubstitutesCompanion({
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.partId = const Value.absent(),
+    this.substitutePartId = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PartSubstitutesCompanion.insert({
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String id,
+    required String partId,
+    required String substitutePartId,
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : updatedAt = Value(updatedAt),
+       id = Value(id),
+       partId = Value(partId),
+       substitutePartId = Value(substitutePartId);
+  static Insertable<PartSubstitute> custom({
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? id,
+    Expression<String>? partId,
+    Expression<String>? substitutePartId,
+    Expression<String>? note,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (id != null) 'id': id,
+      if (partId != null) 'part_id': partId,
+      if (substitutePartId != null) 'substitute_part_id': substitutePartId,
+      if (note != null) 'note': note,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PartSubstitutesCompanion copyWith({
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? id,
+    Value<String>? partId,
+    Value<String>? substitutePartId,
+    Value<String?>? note,
+    Value<int>? rowid,
+  }) {
+    return PartSubstitutesCompanion(
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      id: id ?? this.id,
+      partId: partId ?? this.partId,
+      substitutePartId: substitutePartId ?? this.substitutePartId,
+      note: note ?? this.note,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (partId.present) {
+      map['part_id'] = Variable<String>(partId.value);
+    }
+    if (substitutePartId.present) {
+      map['substitute_part_id'] = Variable<String>(substitutePartId.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PartSubstitutesCompanion(')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('id: $id, ')
+          ..write('partId: $partId, ')
+          ..write('substitutePartId: $substitutePartId, ')
+          ..write('note: $note, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStatesTable extends SyncStates
     with TableInfo<$SyncStatesTable, SyncState> {
   @override
@@ -7156,6 +7625,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $PartColorVariantsTable(this);
   late final $AliasesTable aliases = $AliasesTable(this);
   late final $ServiceItemsTable serviceItems = $ServiceItemsTable(this);
+  late final $PartSubstitutesTable partSubstitutes = $PartSubstitutesTable(
+    this,
+  );
   late final $SyncStatesTable syncStates = $SyncStatesTable(this);
   late final Index assembliesMachine = Index(
     'assemblies_machine',
@@ -7193,6 +7665,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'aliases_term',
     'CREATE INDEX aliases_term ON aliases (term)',
   );
+  late final Index partSubstitutesPart = Index(
+    'part_substitutes_part',
+    'CREATE INDEX part_substitutes_part ON part_substitutes (part_id)',
+  );
+  late final Index partSubstitutesSub = Index(
+    'part_substitutes_sub',
+    'CREATE INDEX part_substitutes_sub ON part_substitutes (substitute_part_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7211,6 +7691,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     partColorVariants,
     aliases,
     serviceItems,
+    partSubstitutes,
     syncStates,
     assembliesMachine,
     assemblyItemsAssembly,
@@ -7221,6 +7702,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     partNumbersPart,
     partColorVariantsPart,
     aliasesTerm,
+    partSubstitutesPart,
+    partSubstitutesSub,
   ];
 }
 
@@ -9433,6 +9916,7 @@ typedef $$PartsTableCreateCompanionBuilder =
       Value<String?> category,
       Value<String?> specs,
       Value<String?> notes,
+      Value<bool> isCurrentReplacement,
       Value<int> rowid,
     });
 typedef $$PartsTableUpdateCompanionBuilder =
@@ -9445,6 +9929,7 @@ typedef $$PartsTableUpdateCompanionBuilder =
       Value<String?> category,
       Value<String?> specs,
       Value<String?> notes,
+      Value<bool> isCurrentReplacement,
       Value<int> rowid,
     });
 
@@ -9493,6 +9978,11 @@ class $$PartsTableFilterComposer extends Composer<_$AppDatabase, $PartsTable> {
 
   ColumnFilters<String> get notes => $composableBuilder(
     column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCurrentReplacement => $composableBuilder(
+    column: $table.isCurrentReplacement,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9545,6 +10035,11 @@ class $$PartsTableOrderingComposer
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isCurrentReplacement => $composableBuilder(
+    column: $table.isCurrentReplacement,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PartsTableAnnotationComposer
@@ -9581,6 +10076,11 @@ class $$PartsTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCurrentReplacement => $composableBuilder(
+    column: $table.isCurrentReplacement,
+    builder: (column) => column,
+  );
 }
 
 class $$PartsTableTableManager
@@ -9619,6 +10119,7 @@ class $$PartsTableTableManager
                 Value<String?> category = const Value.absent(),
                 Value<String?> specs = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isCurrentReplacement = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PartsCompanion(
                 updatedAt: updatedAt,
@@ -9629,6 +10130,7 @@ class $$PartsTableTableManager
                 category: category,
                 specs: specs,
                 notes: notes,
+                isCurrentReplacement: isCurrentReplacement,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9641,6 +10143,7 @@ class $$PartsTableTableManager
                 Value<String?> category = const Value.absent(),
                 Value<String?> specs = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
+                Value<bool> isCurrentReplacement = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PartsCompanion.insert(
                 updatedAt: updatedAt,
@@ -9651,6 +10154,7 @@ class $$PartsTableTableManager
                 category: category,
                 specs: specs,
                 notes: notes,
+                isCurrentReplacement: isCurrentReplacement,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -10678,6 +11182,233 @@ typedef $$ServiceItemsTableProcessedTableManager =
       ServiceItem,
       PrefetchHooks Function()
     >;
+typedef $$PartSubstitutesTableCreateCompanionBuilder =
+    PartSubstitutesCompanion Function({
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      required String id,
+      required String partId,
+      required String substitutePartId,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+typedef $$PartSubstitutesTableUpdateCompanionBuilder =
+    PartSubstitutesCompanion Function({
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> id,
+      Value<String> partId,
+      Value<String> substitutePartId,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+
+class $$PartSubstitutesTableFilterComposer
+    extends Composer<_$AppDatabase, $PartSubstitutesTable> {
+  $$PartSubstitutesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partId => $composableBuilder(
+    column: $table.partId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get substitutePartId => $composableBuilder(
+    column: $table.substitutePartId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PartSubstitutesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PartSubstitutesTable> {
+  $$PartSubstitutesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partId => $composableBuilder(
+    column: $table.partId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get substitutePartId => $composableBuilder(
+    column: $table.substitutePartId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PartSubstitutesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PartSubstitutesTable> {
+  $$PartSubstitutesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get partId =>
+      $composableBuilder(column: $table.partId, builder: (column) => column);
+
+  GeneratedColumn<String> get substitutePartId => $composableBuilder(
+    column: $table.substitutePartId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+}
+
+class $$PartSubstitutesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PartSubstitutesTable,
+          PartSubstitute,
+          $$PartSubstitutesTableFilterComposer,
+          $$PartSubstitutesTableOrderingComposer,
+          $$PartSubstitutesTableAnnotationComposer,
+          $$PartSubstitutesTableCreateCompanionBuilder,
+          $$PartSubstitutesTableUpdateCompanionBuilder,
+          (
+            PartSubstitute,
+            BaseReferences<
+              _$AppDatabase,
+              $PartSubstitutesTable,
+              PartSubstitute
+            >,
+          ),
+          PartSubstitute,
+          PrefetchHooks Function()
+        > {
+  $$PartSubstitutesTableTableManager(
+    _$AppDatabase db,
+    $PartSubstitutesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PartSubstitutesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PartSubstitutesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PartSubstitutesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> partId = const Value.absent(),
+                Value<String> substitutePartId = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PartSubstitutesCompanion(
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                id: id,
+                partId: partId,
+                substitutePartId: substitutePartId,
+                note: note,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String id,
+                required String partId,
+                required String substitutePartId,
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PartSubstitutesCompanion.insert(
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                id: id,
+                partId: partId,
+                substitutePartId: substitutePartId,
+                note: note,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PartSubstitutesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PartSubstitutesTable,
+      PartSubstitute,
+      $$PartSubstitutesTableFilterComposer,
+      $$PartSubstitutesTableOrderingComposer,
+      $$PartSubstitutesTableAnnotationComposer,
+      $$PartSubstitutesTableCreateCompanionBuilder,
+      $$PartSubstitutesTableUpdateCompanionBuilder,
+      (
+        PartSubstitute,
+        BaseReferences<_$AppDatabase, $PartSubstitutesTable, PartSubstitute>,
+      ),
+      PartSubstitute,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStatesTableCreateCompanionBuilder =
     SyncStatesCompanion Function({
       Value<int> id,
@@ -10862,6 +11593,8 @@ class $AppDatabaseManager {
       $$AliasesTableTableManager(_db, _db.aliases);
   $$ServiceItemsTableTableManager get serviceItems =>
       $$ServiceItemsTableTableManager(_db, _db.serviceItems);
+  $$PartSubstitutesTableTableManager get partSubstitutes =>
+      $$PartSubstitutesTableTableManager(_db, _db.partSubstitutes);
   $$SyncStatesTableTableManager get syncStates =>
       $$SyncStatesTableTableManager(_db, _db.syncStates);
 }

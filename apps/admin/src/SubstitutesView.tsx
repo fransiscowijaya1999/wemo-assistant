@@ -12,7 +12,14 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core';
-import { IconArrowsExchange, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
+import {
+  IconArrowsExchange,
+  IconPlus,
+  IconSearch,
+  IconStar,
+  IconStarFilled,
+  IconX,
+} from '@tabler/icons-react';
 import { api } from './api';
 import { notifyError, notifySuccess } from './notify';
 import type { PartFull, SearchResult } from './types';
@@ -141,6 +148,24 @@ export function SubstitutesView() {
     }
   }
 
+  // Mark a part (the managed one or one of its substitutes) as the current
+  // replacement. The backend auto-clears the flag on its cluster siblings, so
+  // exactly one part stays current; reload to reflect the moved highlight.
+  async function setCurrent(id: string, makeCurrent: boolean) {
+    if (!part) return;
+    setBusy(true);
+    try {
+      if (makeCurrent) await api.markCurrent(id);
+      else await api.unmarkCurrent(id);
+      notifySuccess(makeCurrent ? 'Marked as current replacement' : 'Cleared current replacement');
+      await load(part.id);
+    } catch (e) {
+      notifyError('Could not update', String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const partName = part ? part.nameNormalized ?? part.nameRaw : '';
 
   return (
@@ -170,7 +195,21 @@ export function SubstitutesView() {
         <Card withBorder>
           <Stack gap="sm">
             <div>
-              <Text fw={600}>{partName}</Text>
+              <Group gap="sm">
+                <Text fw={600}>{partName}</Text>
+                <Button
+                  size="compact-xs"
+                  variant={part.isCurrentReplacement ? 'filled' : 'default'}
+                  color="yellow"
+                  leftSection={
+                    part.isCurrentReplacement ? <IconStarFilled size={12} /> : <IconStar size={12} />
+                  }
+                  disabled={busy}
+                  onClick={() => setCurrent(part.id, !part.isCurrentReplacement)}
+                >
+                  {part.isCurrentReplacement ? 'Current replacement' : 'Mark as current'}
+                </Button>
+              </Group>
               <Group gap="xs" mt={4}>
                 {part.numbers.map((n) => (
                   <Badge
@@ -186,38 +225,60 @@ export function SubstitutesView() {
 
             <div>
               <Text size="xs" c="dimmed" fw={500} mb={4}>
-                Current substitutes ({part.substitutes.length})
+                Substitutes ({part.substitutes.length})
               </Text>
               {part.substitutes.length === 0 ? (
                 <Text size="sm" c="dimmed">
                   None yet. Add one below.
                 </Text>
               ) : (
-                <Group gap={6}>
-                  {part.substitutes.map((s) => (
-                    <Badge
-                      key={s.partId}
-                      size="lg"
-                      variant="light"
-                      color="teal"
-                      rightSection={
-                        <ActionIcon
-                          size="xs"
-                          color="teal"
-                          variant="transparent"
-                          aria-label={`Remove ${s.name}`}
-                          disabled={busy}
-                          onClick={() => removeLink(s.partId)}
-                        >
-                          <IconX size={12} />
-                        </ActionIcon>
-                      }
-                    >
-                      {s.primaryNumber ? `${s.primaryNumber} · ` : ''}
-                      {s.name}
-                    </Badge>
-                  ))}
-                </Group>
+                <Stack gap={6}>
+                  <Group gap={6}>
+                    {part.substitutes.map((s) => (
+                      <Badge
+                        key={s.partId}
+                        size="lg"
+                        variant={s.isCurrent ? 'filled' : 'light'}
+                        color={s.isCurrent ? 'yellow' : 'teal'}
+                        leftSection={s.isCurrent ? <IconStarFilled size={11} /> : undefined}
+                        rightSection={
+                          <Group gap={2} wrap="nowrap">
+                            {!s.isCurrent && (
+                              <ActionIcon
+                                size="xs"
+                                color="yellow"
+                                variant="transparent"
+                                aria-label={`Mark ${s.name} as current replacement`}
+                                title="Mark as current replacement"
+                                disabled={busy}
+                                onClick={() => setCurrent(s.partId, true)}
+                              >
+                                <IconStar size={12} />
+                              </ActionIcon>
+                            )}
+                            <ActionIcon
+                              size="xs"
+                              color={s.isCurrent ? 'yellow.9' : 'teal'}
+                              variant="transparent"
+                              aria-label={`Remove ${s.name}`}
+                              disabled={busy}
+                              onClick={() => removeLink(s.partId)}
+                            >
+                              <IconX size={12} />
+                            </ActionIcon>
+                          </Group>
+                        }
+                      >
+                        {s.primaryNumber ? `${s.primaryNumber} · ` : ''}
+                        {s.name}
+                      </Badge>
+                    ))}
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    ★ marks the current replacement — the part to use; the others are obsolete. Click
+                    the star on a substitute to make it current.
+                  </Text>
+                </Stack>
               )}
             </div>
 

@@ -132,6 +132,23 @@ class Parts extends Table with _Synced {
   TextColumn get category => text().nullable()();
   TextColumn get specs => text().nullable()(); // JSON string
   TextColumn get notes => text().nullable()();
+  // True when this part is the current replacement in its substitute cluster.
+  BoolColumn get isCurrentReplacement => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Manual, symmetric substitute link between two DIFFERENT canonical parts
+/// (mirrors backend `part_substitutes`; one undirected row per pair). The
+/// current-replacement designation lives on `Parts.isCurrentReplacement`, not here.
+@TableIndex(name: 'part_substitutes_part', columns: {#partId})
+@TableIndex(name: 'part_substitutes_sub', columns: {#substitutePartId})
+class PartSubstitutes extends Table with _Synced {
+  TextColumn get id => text()();
+  TextColumn get partId => text()();
+  TextColumn get substitutePartId => text()();
+  TextColumn get note => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

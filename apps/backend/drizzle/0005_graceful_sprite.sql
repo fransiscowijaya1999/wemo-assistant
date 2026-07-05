@@ -1,0 +1,1 @@
+ALTER TABLE `parts` ADD `is_current_replacement` integer DEFAULT false NOT NULL;

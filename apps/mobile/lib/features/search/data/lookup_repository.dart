@@ -208,11 +208,40 @@ class LookupRepository {
       }
     }
 
+    // Substitutes: union both columns of the undirected link to the other side,
+    // resolving its name, a primary number, and whether it's the current
+    // replacement (soft-deleted links are already absent from the replica).
+    final substituteRows = await db.customSelect(
+      'SELECT p.id AS other_id, '
+      'COALESCE(p.name_normalized, p.name_raw) AS name, '
+      'p.is_current_replacement AS is_current, ps.note AS note, '
+      '(SELECT pn.value FROM part_numbers pn WHERE pn.part_id = p.id '
+      ' ORDER BY pn.is_primary DESC, pn.value LIMIT 1) AS primary_number '
+      'FROM part_substitutes ps '
+      'JOIN parts p ON p.id = CASE WHEN ps.part_id = ? THEN ps.substitute_part_id ELSE ps.part_id END '
+      'WHERE ps.part_id = ? OR ps.substitute_part_id = ? '
+      'ORDER BY is_current DESC, name',
+      variables: [Variable<String>(partId), Variable<String>(partId), Variable<String>(partId)],
+      readsFrom: {db.partSubstitutes, db.parts, db.partNumbers},
+    ).get();
+
     return PartDetail(
       id: part.id,
       name: part.nameNormalized ?? part.nameRaw,
       category: part.category,
       notes: part.notes,
+      isCurrentReplacement: part.isCurrentReplacement,
+      substitutes: substituteRows
+          .map(
+            (r) => SubstituteView(
+              partId: r.read<String>('other_id'),
+              name: r.read<String>('name'),
+              primaryNumber: r.read<String?>('primary_number'),
+              note: r.read<String?>('note'),
+              isCurrent: r.read<bool>('is_current'),
+            ),
+          )
+          .toList(),
       numbers: numbers
           .map((n) => PartNumberView(value: n.value, kind: n.kind, brand: n.brand, isPrimary: n.isPrimary))
           .toList(),

@@ -146,6 +146,10 @@ export const parts = sqliteTable('parts', {
   category: text('category'),
   specs: text('specs', { mode: 'json' }).$type<Record<string, unknown>>(),
   notes: text('notes'),
+  // True when this part is the CURRENT replacement within its substitute cluster —
+  // the one to stock/sell, marking the others it interchanges with as obsolete. Set
+  // by the admin (see part_substitutes); surfaced through getSubstitutes.
+  isCurrentReplacement: integer('is_current_replacement', { mode: 'boolean' }).notNull().default(false),
   ...timestamps(),
 }, (t) => [
   index('parts_name_normalized_idx').on(t.nameNormalized),

@@ -20,6 +20,7 @@ part 'app_database.g.dart';
     PartColorVariants,
     Aliases,
     ServiceItems,
+    PartSubstitutes,
     SyncStates,
   ],
 )
@@ -30,9 +31,23 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
-  /// The 13 mirrored catalog tables, keyed by the name the sync API uses
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      // This is a disposable read replica: rather than write per-version
+      // migrations, drop and recreate every table, then let the sync cursor
+      // (reset to '0' because SyncStates is recreated empty) rebuild the whole
+      // catalog from the master — including any new tables/columns.
+      for (final table in allTables) {
+        await m.deleteTable(table.actualTableName);
+      }
+      await m.createAll();
+    },
+  );
+
+  /// The 14 mirrored catalog tables, keyed by the name the sync API uses
   /// (see apps/backend/src/routes/sync.ts `SYNC_TABLES`). Order matches the
   /// server so a full sync inserts parents before children where it matters.
   Map<String, TableInfo> get syncTables => {
@@ -49,6 +64,7 @@ class AppDatabase extends _$AppDatabase {
     'partColorVariants': partColorVariants,
     'aliases': aliases,
     'serviceItems': serviceItems,
+    'partSubstitutes': partSubstitutes,
   };
 
   /// Wipe every mirrored catalog table so a full sync can rebuild from scratch.

@@ -112,6 +112,16 @@ export const api = {
       method: 'DELETE',
       admin: true,
     }),
+  markCurrent: (partId: string) =>
+    req<{ ok: boolean }>(`/parts/${encodeURIComponent(partId)}/substitutes/current`, {
+      method: 'POST',
+      admin: true,
+    }),
+  unmarkCurrent: (partId: string) =>
+    req<{ ok: boolean }>(`/parts/${encodeURIComponent(partId)}/substitutes/current`, {
+      method: 'DELETE',
+      admin: true,
+    }),
   adminChat: (messages: ChatMessage[]) =>
     req<{ reply: string; proposals: Proposal[] }>('/admin/chat', { method: 'POST', admin: true, body: { messages } }),
   applyCorrection: (proposal: CorrectionProposal) =>

@@ -68,6 +68,8 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
           Text(part.notes!, style: theme.textTheme.bodyMedium),
         ],
 
+        ..._statusBanner(context, part),
+
         _SectionTitle('Part numbers', count: part.numbers.length),
         ...part.numbers.map((n) => _NumberTile(number: n, onTap: () => _copy(n.value))),
 
@@ -94,6 +96,13 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
           ),
         ],
 
+        if (part.substitutes.isNotEmpty) ...[
+          _SectionTitle('Substitutes', count: part.substitutes.length),
+          ...part.substitutes.map(
+            (s) => _substituteTile(context, part, s),
+          ),
+        ],
+
         if (part.placements.isNotEmpty) ...[
           _SectionTitle('Appears in', count: part.placements.length),
           ...part.placements.map(
@@ -117,6 +126,133 @@ class _PartDetailScreenState extends State<PartDetailScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  void _openPart(String partId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => PartDetailScreen(partId: partId)),
+    );
+  }
+
+  /// A callout at the top: green when this part IS the current replacement, or a
+  /// "superseded" pointer to whichever substitute is current. Nothing when the
+  /// cluster has no designated current part.
+  List<Widget> _statusBanner(BuildContext context, PartDetail part) {
+    final theme = Theme.of(context);
+    if (part.isCurrentReplacement) {
+      return [
+        _Banner(
+          icon: Icons.verified,
+          color: theme.colorScheme.primary,
+          title: 'Current replacement',
+          subtitle: 'Use this part — the ones it interchanges with are obsolete.',
+        ),
+      ];
+    }
+    SubstituteView? current;
+    for (final s in part.substitutes) {
+      if (s.isCurrent) {
+        current = s;
+        break;
+      }
+    }
+    if (current != null) {
+      final label = [
+        if (current.primaryNumber != null) current.primaryNumber!,
+        current.name,
+      ].join(' · ');
+      final currentId = current.partId;
+      return [
+        _Banner(
+          icon: Icons.info_outline,
+          color: theme.colorScheme.tertiary,
+          title: 'Superseded — obsolete',
+          subtitle: 'Current replacement: $label',
+          onTap: () => _openPart(currentId),
+        ),
+      ];
+    }
+    return const [];
+  }
+
+  Widget _substituteTile(BuildContext context, PartDetail part, SubstituteView s) {
+    final theme = Theme.of(context);
+    // "Obsolete" only reads true when the cluster has a designated current part
+    // (this one or a sibling); otherwise the parts are simply interchangeable.
+    final hasCurrent = part.isCurrentReplacement || part.substitutes.any((o) => o.isCurrent);
+    final String status;
+    if (s.isCurrent) {
+      status = 'Current replacement';
+    } else if (hasCurrent) {
+      status = 'Obsolete';
+    } else {
+      status = 'Interchangeable';
+    }
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        s.isCurrent ? Icons.star : Icons.swap_horiz,
+        color: s.isCurrent ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text(
+        [if (s.primaryNumber != null) s.primaryNumber!, s.name].join(' · '),
+      ),
+      subtitle: Text(s.note == null ? status : '$status · ${s.note}'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _openPart(s.partId),
+    );
+  }
+}
+
+class _Banner extends StatelessWidget {
+  const _Banner({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleSmall?.copyWith(color: color)),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+                if (onTap != null) Icon(Icons.chevron_right, color: color),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

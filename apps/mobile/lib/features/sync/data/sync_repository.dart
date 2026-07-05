@@ -83,6 +83,8 @@ class SyncRepository {
         return _apply(db.aliases, rows, _alias);
       case 'serviceItems':
         return _apply(db.serviceItems, rows, _serviceItem);
+      case 'partSubstitutes':
+        return _apply(db.partSubstitutes, rows, _partSubstitute);
       default:
         return; // unknown table (forward-compat): ignore
     }
@@ -227,6 +229,7 @@ PartsCompanion _part(Map<String, dynamic> r) => PartsCompanion.insert(
   category: Value(r['category'] as String?),
   specs: Value(_json(r['specs'])),
   notes: Value(r['notes'] as String?),
+  isCurrentReplacement: Value(r['isCurrentReplacement'] as bool? ?? false),
   updatedAt: _dt(r['updatedAt']),
   deletedAt: Value(_dtN(r['deletedAt'])),
 );
@@ -258,6 +261,15 @@ AliasesCompanion _alias(Map<String, dynamic> r) => AliasesCompanion.insert(
   partId: r['partId'] as String,
   term: r['term'] as String,
   lang: Value(r['lang'] as String?),
+  updatedAt: _dt(r['updatedAt']),
+  deletedAt: Value(_dtN(r['deletedAt'])),
+);
+
+PartSubstitutesCompanion _partSubstitute(Map<String, dynamic> r) => PartSubstitutesCompanion.insert(
+  id: r['id'] as String,
+  partId: r['partId'] as String,
+  substitutePartId: r['substitutePartId'] as String,
+  note: Value(r['note'] as String?),
   updatedAt: _dt(r['updatedAt']),
   deletedAt: Value(_dtN(r['deletedAt'])),
 );

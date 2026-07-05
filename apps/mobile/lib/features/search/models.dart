@@ -79,6 +79,24 @@ class PartPlacement {
   final String? applicability;
 }
 
+/// A part this one interchanges with (manual substitute link). Within a cluster
+/// one part is the current replacement ([isCurrent]); the others are obsolete.
+class SubstituteView {
+  const SubstituteView({
+    required this.partId,
+    required this.name,
+    required this.primaryNumber,
+    required this.note,
+    required this.isCurrent,
+  });
+
+  final String partId;
+  final String name;
+  final String? primaryNumber;
+  final String? note;
+  final bool isCurrent;
+}
+
 class PartDetail {
   const PartDetail({
     required this.id,
@@ -89,6 +107,8 @@ class PartDetail {
     required this.colorVariants,
     required this.aliases,
     required this.placements,
+    required this.substitutes,
+    required this.isCurrentReplacement,
   });
 
   final String id;
@@ -99,4 +119,10 @@ class PartDetail {
   final List<ColorVariantView> colorVariants;
   final List<String> aliases;
   final List<PartPlacement> placements;
+
+  /// Parts this one can be replaced with; the current-replacement one is flagged.
+  final List<SubstituteView> substitutes;
+
+  /// True when this part itself is the current replacement in its cluster.
+  final bool isCurrentReplacement;
 }

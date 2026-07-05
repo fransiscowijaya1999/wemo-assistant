@@ -25,6 +25,7 @@ import {
   IconPlus,
   IconSearch,
   IconStack2,
+  IconStarFilled,
   IconTrash,
 } from '@tabler/icons-react';
 import { api, imageUrl } from './api';
@@ -569,13 +570,24 @@ export function BrowseView({
                     </Text>
                     <Group gap="xs">
                       {part.substitutes.map((s) => (
-                        <Badge key={s.partId} color="teal" variant="light">
+                        <Badge
+                          key={s.partId}
+                          color={s.isCurrent ? 'yellow' : 'teal'}
+                          variant={s.isCurrent ? 'filled' : 'light'}
+                          leftSection={s.isCurrent ? <IconStarFilled size={11} /> : undefined}
+                          title={s.isCurrent ? 'Current replacement' : 'Obsolete — superseded'}
+                        >
                           {s.primaryNumber ? `${s.primaryNumber} · ` : ''}
                           {s.name}
                         </Badge>
                       ))}
                     </Group>
                   </Stack>
+                )}
+                {part.isCurrentReplacement && (
+                  <Badge color="yellow" variant="filled" leftSection={<IconStarFilled size={11} />}>
+                    Current replacement
+                  </Badge>
                 )}
                 {part.placements.length > 0 && (
                   <Stack gap={4}>

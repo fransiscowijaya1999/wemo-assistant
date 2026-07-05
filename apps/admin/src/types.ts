@@ -138,6 +138,7 @@ export type SubstituteLink = {
   name: string;
   primaryNumber: string | null;
   note: string | null;
+  isCurrent: boolean; // this substitute is the current replacement; the rest are obsolete
 };
 
 export type PartFull = {
@@ -146,6 +147,7 @@ export type PartFull = {
   nameNormalized?: string | null;
   category?: string | null;
   notes?: string | null;
+  isCurrentReplacement: boolean; // this part is the current replacement in its substitute cluster
   numbers: { value: string; kind: string; brand?: string | null; note?: string | null; isPrimary: boolean }[];
   colorVariants: { id: string; colorId: string; suffixCode?: string | null; fullNumber?: string | null }[];
   placements: Placement[];

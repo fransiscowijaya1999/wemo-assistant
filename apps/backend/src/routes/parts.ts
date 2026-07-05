@@ -60,6 +60,7 @@ async function getSubstitutes(db: Db, partId: string) {
 
   const otherParts = await db.select().from(parts).where(inArray(parts.id, otherIds));
   const nameById = new Map(otherParts.map((p) => [p.id, p.nameNormalized ?? p.nameRaw] as const));
+  const currentById = new Map(otherParts.map((p) => [p.id, p.isCurrentReplacement] as const));
 
   const nums = await db
     .select({ partId: partNumbers.partId, value: partNumbers.value, isPrimary: partNumbers.isPrimary })
@@ -78,7 +79,22 @@ async function getSubstitutes(db: Db, partId: string) {
       name: nameById.get(oid)!,
       primaryNumber: primaryById.get(oid) ?? null,
       note: noteByOther.get(oid) ?? null,
+      isCurrent: currentById.get(oid) ?? false,
     }));
+}
+
+// The ids of a part's live, direct substitutes (union of both columns of the pair).
+async function substituteIds(db: Db, partId: string): Promise<string[]> {
+  const links = await db
+    .select({ partId: partSubstitutes.partId, substitutePartId: partSubstitutes.substitutePartId })
+    .from(partSubstitutes)
+    .where(
+      and(
+        or(eq(partSubstitutes.partId, partId), eq(partSubstitutes.substitutePartId, partId)),
+        isNull(partSubstitutes.deletedAt),
+      ),
+    );
+  return links.map((l) => (l.partId === partId ? l.substitutePartId : l.partId));
 }
 
 // Where this part's numbers are used: each live diagram position, with which
@@ -227,6 +243,42 @@ partsRoute.post('/:id/substitutes', requireAdmin, async (c) => {
     .values({ partId: lo, substitutePartId: hi, note: body?.note?.trim() || null })
     .returning();
   return c.json({ ok: true, link: row }, 201);
+});
+
+// Mark this part as the CURRENT replacement within its substitute cluster, and
+// auto-move the highlight: clear the flag on its direct substitutes so exactly one
+// part per cluster stays current. Registered before '/:otherId' so 'current' is
+// matched as a static segment, not captured as an id.
+partsRoute.post('/:id/substitutes/current', requireAdmin, async (c) => {
+  const partId = c.req.param('id');
+  const db = getDb(c.env);
+  if (!(await livePart(db, partId))) return c.json({ error: 'part not found' }, 404);
+
+  const now = new Date();
+  const siblings = await substituteIds(db, partId);
+  if (siblings.length > 0) {
+    await db
+      .update(parts)
+      .set({ isCurrentReplacement: false, updatedAt: now })
+      .where(inArray(parts.id, siblings));
+  }
+  await db
+    .update(parts)
+    .set({ isCurrentReplacement: true, updatedAt: now })
+    .where(eq(parts.id, partId));
+  return c.json({ ok: true });
+});
+
+// DELETE /parts/:id/substitutes/current — unmark (no longer the current replacement).
+partsRoute.delete('/:id/substitutes/current', requireAdmin, async (c) => {
+  const partId = c.req.param('id');
+  const db = getDb(c.env);
+  if (!(await livePart(db, partId))) return c.json({ error: 'part not found' }, 404);
+  await db
+    .update(parts)
+    .set({ isCurrentReplacement: false, updatedAt: new Date() })
+    .where(eq(parts.id, partId));
+  return c.json({ ok: true });
 });
 
 // DELETE /parts/:id/substitutes/:otherId  — soft-delete (tombstone syncs to replicas)
