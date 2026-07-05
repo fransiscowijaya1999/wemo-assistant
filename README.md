@@ -6,6 +6,7 @@ brings no part number — via a browsable, searchable, dot-mapped catalog with A
 
 See **[CLAUDE.md](./CLAUDE.md)** for the full picture. Key docs:
 
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** — how to deploy all three apps (backend, admin, mobile) to production, step by step.
 - **[docs/catalog-format.md](./docs/catalog-format.md)** — how Honda parts catalogs are structured (the source data).
 - **[docs/schema.md](./docs/schema.md)** — the data model and why it looks the way it does.
 - **[docs/mobile-plan.md](./docs/mobile-plan.md)** — build plan for the Flutter clerk app.
@@ -35,8 +36,9 @@ bun run dev
 
 Snapshot the whole catalog from one deployment and replay it into another over HTTP — so the
 token-expensive AI ingest done in **dev** isn't lost when moving to **prod** (no re-extraction). One
-JSON archive holds the 13 catalog tables + every referenced R2 diagram image (base64); it excludes
-`app_settings` (AI secrets) and `users` (auth). Both routes are `requireAdmin`.
+JSON archive holds the 14 catalog tables + every referenced R2 diagram image (base64); it excludes
+`app_settings` (AI secrets) and `users` (auth). Both routes are `requireAdmin`. Full write-up (what's
+in it, idempotency, caveats) in **[DEPLOYMENT.md](./DEPLOYMENT.md)** §1e.
 
 ```bash
 cd apps/backend

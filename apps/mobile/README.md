@@ -85,6 +85,13 @@ flutter test                                   # unit/widget tests
 flutter test integration_test                  # on-emulator integration tests (needs a device)
 ```
 
+## Production build & deploy
+
+This README covers **local/emulator dev**. To build a release APK and point it at the deployed
+backend, see the repo-root **[DEPLOYMENT.md](../../DEPLOYMENT.md)** (§3). Short version:
+`flutter build apk --release`, sideload the APK, then on the phone's **Sync** tab set the Backend URL
+to the `https://` Worker and the API key to the backend's `CLERK_TOKEN`.
+
 ## Common issues
 
 - **`flutter devices` shows nothing** — the emulator hasn't finished booting, or no AVD was
