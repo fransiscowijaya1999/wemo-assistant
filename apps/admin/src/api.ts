@@ -101,6 +101,17 @@ export const api = {
   lookupPart: (number: string) => req<PartFull>(`/parts?number=${encodeURIComponent(number)}`),
   searchParts: (q: string) => req<{ results: SearchResult[] }>(`/parts/search?q=${encodeURIComponent(q)}`),
   getPart: (id: string) => req<PartFull>(`/parts/${encodeURIComponent(id)}`),
+  addSubstitute: (partId: string, substitutePartId: string, note?: string) =>
+    req<{ ok: boolean }>(`/parts/${encodeURIComponent(partId)}/substitutes`, {
+      method: 'POST',
+      admin: true,
+      body: { substitutePartId, note },
+    }),
+  removeSubstitute: (partId: string, otherId: string) =>
+    req<{ ok: boolean }>(`/parts/${encodeURIComponent(partId)}/substitutes/${encodeURIComponent(otherId)}`, {
+      method: 'DELETE',
+      admin: true,
+    }),
   adminChat: (messages: ChatMessage[]) =>
     req<{ reply: string; proposals: Proposal[] }>('/admin/chat', { method: 'POST', admin: true, body: { messages } }),
   applyCorrection: (proposal: CorrectionProposal) =>

@@ -15,6 +15,7 @@ import {
 } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import {
+  IconArrowsExchange,
   IconEngine,
   IconFiles,
   IconMapPin,
@@ -35,6 +36,7 @@ import { ColorIngestView } from './ColorIngestView';
 import { BatchIngest } from './BatchIngest';
 import { DotEditor } from './DotEditor';
 import { BrowseView } from './BrowseView';
+import { SubstitutesView } from './SubstitutesView';
 import { AssistantView } from './AssistantView';
 import { SettingsView } from './SettingsView';
 
@@ -133,6 +135,9 @@ function Shell() {
                 <Tabs.Tab value="browse" leftSection={<IconSearch size={16} />}>
                   Browse
                 </Tabs.Tab>
+                <Tabs.Tab value="substitutes" leftSection={<IconArrowsExchange size={16} />}>
+                  Substitutes
+                </Tabs.Tab>
                 <Tabs.Tab value="assistant" leftSection={<IconSparkles size={16} />}>
                   Assistant
                 </Tabs.Tab>
@@ -161,6 +166,9 @@ function Shell() {
                   onMachinesChanged={refreshMachines}
                   onGoToIngest={() => setTab('ingest')}
                 />
+              </Tabs.Panel>
+              <Tabs.Panel value="substitutes" pt="md">
+                <SubstitutesView />
               </Tabs.Panel>
               <Tabs.Panel value="assistant" pt="md" keepMounted>
                 <AssistantView />

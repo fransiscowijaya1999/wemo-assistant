@@ -133,6 +133,13 @@ export type Placement = {
   applicability: Applicability[];
 };
 
+export type SubstituteLink = {
+  partId: string;
+  name: string;
+  primaryNumber: string | null;
+  note: string | null;
+};
+
 export type PartFull = {
   id: string;
   nameRaw: string;
@@ -142,6 +149,7 @@ export type PartFull = {
   numbers: { value: string; kind: string; brand?: string | null; note?: string | null; isPrimary: boolean }[];
   colorVariants: { id: string; colorId: string; suffixCode?: string | null; fullNumber?: string | null }[];
   placements: Placement[];
+  substitutes: SubstituteLink[];
 };
 
 // --- Admin correction assistant ---

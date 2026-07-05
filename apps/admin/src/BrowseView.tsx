@@ -562,6 +562,21 @@ export function BrowseView({
                     ))}
                   </Group>
                 )}
+                {part.substitutes.length > 0 && (
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed" fw={500}>
+                      Substitutes (manage in the Substitutes tab)
+                    </Text>
+                    <Group gap="xs">
+                      {part.substitutes.map((s) => (
+                        <Badge key={s.partId} color="teal" variant="light">
+                          {s.primaryNumber ? `${s.primaryNumber} · ` : ''}
+                          {s.name}
+                        </Badge>
+                      ))}
+                    </Group>
+                  </Stack>
+                )}
                 {part.placements.length > 0 && (
                   <Stack gap={4}>
                     <Text size="xs" c="dimmed" fw={500}>
