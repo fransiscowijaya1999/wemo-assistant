@@ -38,7 +38,9 @@ const CONCURRENCY = 3;
 type PageType = 'skip' | 'assembly' | 'color';
 type PageStatus = 'pending' | 'extracting' | 'extracted' | 'committing' | 'committed' | 'error';
 type PageState = {
+  id: string;
   pageNo: number;
+  source: string;
   dataUrl: string;
   type: PageType;
   status: PageStatus;
@@ -131,15 +133,37 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const patch = (i: number, p: Partial<PageState>) =>
     setPages((prev) => prev.map((pg, k) => (k === i ? { ...pg, ...p } : pg)));
 
-  async function onPdf(file: File | null) {
-    if (!file) return;
+  // Renders each selected PDF and APPENDS its pages to the grid (choose again to add more
+  // catalogs / more parts of a split catalog). Pages are tagged with their source file so a
+  // multi-file grid stays legible; commit still targets the single selected machine.
+  async function onPdfs(files: File[]) {
+    if (!files.length) return;
     setErr('');
-    setPages([]);
-    setPhase({ label: 'Rendering PDF', done: 0, total: 1 });
+    let total = 0;
     try {
-      const rendered = await renderPdf(file, (n, t) => setPhase({ label: 'Rendering PDF', done: n, total: t }));
-      setPages(rendered.map((r) => ({ pageNo: r.pageNo, dataUrl: r.dataUrl, type: 'skip', status: 'pending' })));
-      notifySuccess(`${rendered.length} pages rendered`, "Mark each page's type, then Extract selected.");
+      for (let f = 0; f < files.length; f++) {
+        const file = files[f];
+        const base = file.name.replace(/\.pdf$/i, '');
+        const label = files.length > 1 ? `Rendering ${base} (${f + 1}/${files.length})` : 'Rendering PDF';
+        setPhase({ label, done: 0, total: 1 });
+        const rendered = await renderPdf(file, (n, t) => setPhase({ label, done: n, total: t }));
+        setPages((prev) => [
+          ...prev,
+          ...rendered.map((r) => ({
+            id: `${base}#${r.pageNo}#${crypto.randomUUID().slice(0, 8)}`,
+            pageNo: r.pageNo,
+            source: base,
+            dataUrl: r.dataUrl,
+            type: 'skip' as PageType,
+            status: 'pending' as PageStatus,
+          })),
+        ]);
+        total += rendered.length;
+      }
+      notifySuccess(
+        `${total} pages rendered${files.length > 1 ? ` from ${files.length} PDFs` : ''}`,
+        "Mark each page's type, then Extract selected.",
+      );
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -251,6 +275,8 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
 
   const nAssembly = pages.filter((p) => p.type === 'assembly').length;
   const nColor = pages.filter((p) => p.type === 'color').length;
+  const sources = Array.from(new Set(pages.map((p) => p.source)));
+  const multiFile = sources.length > 1;
 
   return (
     <Stack>
@@ -260,16 +286,17 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
             <ThemeIcon variant="light" size="xl" radius="xl">
               <IconFileTypePdf size={26} />
             </ThemeIcon>
-            <Text fw={500}>Ingest a whole catalog PDF</Text>
+            <Text fw={500}>Ingest whole catalog PDFs</Text>
             <Text size="xs" c="dimmed" ta="center" maw={520}>
-              Renders the PDF in your browser (pdf.js). Mark front-matter/index pages as “skip”. Each
-              assembly/color page is one paid Claude call; group is inferred from the assembly code
-              (E→engine, F→frame).
+              Renders the PDFs in your browser (pdf.js) — pick one or more. Mark front-matter/index
+              pages as “skip”. Each assembly/color page is one paid Claude call; group is inferred
+              from the assembly code (E→engine, F→frame). All pages commit to the machine selected in
+              the header.
             </Text>
-            <FileButton onChange={onPdf} accept="application/pdf">
+            <FileButton onChange={onPdfs} accept="application/pdf" multiple>
               {(props) => (
                 <Button mt="xs" leftSection={<IconFileTypePdf size={16} />} {...props}>
-                  Choose catalog PDF
+                  Choose catalog PDFs
                 </Button>
               )}
             </FileButton>
@@ -277,15 +304,18 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
         </Card>
       ) : (
         <Group align="center">
-          <FileButton onChange={onPdf} accept="application/pdf">
+          <FileButton onChange={onPdfs} accept="application/pdf" multiple>
             {(props) => (
               <Button variant="default" leftSection={<IconFileTypePdf size={16} />} {...props}>
-                Choose catalog PDF
+                Add PDFs
               </Button>
             )}
           </FileButton>
+          <Button variant="subtle" color="gray" onClick={() => setPages([])} disabled={!!phase}>
+            Clear
+          </Button>
           <Text size="sm" c="dimmed">
-            {pages.length} pages · {nAssembly} assembly · {nColor} color
+            {pages.length} pages{multiFile ? ` · ${sources.length} PDFs` : ''} · {nAssembly} assembly · {nColor} color
           </Text>
           <Button variant="light" onClick={() => setAll('assembly')}>
             All → assembly
@@ -319,8 +349,13 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
       {pages.length > 0 && (
         <SimpleGrid cols={{ base: 2, sm: 4, md: 6 }} spacing="xs">
           {pages.map((p, i) => (
-            <Paper key={p.pageNo} withBorder p={4} style={{ borderColor: borderFor[p.status] }}>
-              <Image src={p.dataUrl} h={110} fit="contain" alt={`page ${p.pageNo}`} />
+            <Paper key={p.id} withBorder p={4} style={{ borderColor: borderFor[p.status] }}>
+              {multiFile && (
+                <Text fz={10} c="dimmed" lineClamp={1} title={p.source}>
+                  {p.source}
+                </Text>
+              )}
+              <Image src={p.dataUrl} h={110} fit="contain" alt={`${p.source} page ${p.pageNo}`} />
               <Group justify="space-between" wrap="nowrap" mt={4} gap={4}>
                 <Group gap={4} wrap="nowrap">
                   <Text size="xs" fw={600}>
