@@ -3,6 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/connectivity/connectivity_controller.dart';
+import '../browse/diagram_screen.dart';
 import '../search/part_detail_screen.dart';
 import 'assistant_controller.dart';
 import 'models.dart';
@@ -153,19 +154,43 @@ class _MessageBubble extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 4,
                 children: [
-                  for (final cit in message.citations)
-                    ActionChip(
-                      avatar: const Icon(Icons.open_in_new, size: 16),
-                      label: Text(cit.primaryNumber == null ? cit.name : '${cit.name} · ${cit.primaryNumber}'),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => PartDetailScreen(partId: cit.partId)),
-                      ),
-                    ),
+                  for (final cit in message.citations) _CitationChip(citation: cit),
                 ],
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A citation chip: a part opens its detail, an assembly opens its diagram.
+class _CitationChip extends StatelessWidget {
+  const _CitationChip({required this.citation});
+
+  final ChatCitation citation;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = citation;
+    final (IconData icon, String label, Widget screen) = switch (c) {
+      PartCitation() => (
+        Icons.open_in_new,
+        c.primaryNumber == null ? c.name : '${c.name} · ${c.primaryNumber}',
+        PartDetailScreen(partId: c.partId),
+      ),
+      AssemblyCitation() => (
+        Icons.image_outlined,
+        '${c.code} · ${c.name}',
+        DiagramScreen(assemblyId: c.assemblyId),
+      ),
+    };
+    return ActionChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => screen),
       ),
     );
   }

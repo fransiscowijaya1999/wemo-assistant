@@ -13,11 +13,24 @@ export interface ChatMessage {
 }
 
 /** A catalog part surfaced by a tool during a turn, for the UI to link to. */
-export interface Citation {
+export interface PartCitation {
+  type: 'part';
   partId: string;
   name: string;
   primaryNumber: string | null;
 }
+
+/** A diagram/assembly the assistant opened during a turn, linked to its diagram. */
+export interface AssemblyCitation {
+  type: 'assembly';
+  assemblyId: string;
+  code: string;
+  name: string;
+  machine: string;
+}
+
+/** Anything a tool surfaced this turn for the UI to link to. */
+export type Citation = PartCitation | AssemblyCitation;
 
 /** Anthropic-style tool definition (JSON-schema input). Provider-agnostic. */
 export interface ChatToolDef {

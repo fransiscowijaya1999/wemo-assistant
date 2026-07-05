@@ -240,9 +240,22 @@ export async function listAssemblies(db: Db, args: { machineId?: string; machine
   };
 }
 
+type AssemblyItemRow = { refNo: string; partId: string | null; name: string | null; number: string | null };
+export type GetAssemblyResult =
+  | { error: string }
+  | {
+      assemblyId: string;
+      machine: string;
+      assembly: { code: string; name: string };
+      items: AssemblyItemRow[];
+    };
+
 /** The parts listed in one assembly (by assemblyId, or machine name + code).
  * Ground truth for "what parts are in <assembly>" — e.g. the valves in CAMSHAFT/VALVE. */
-export async function getAssembly(db: Db, args: { assemblyId?: string; machine?: string; code?: string }) {
+export async function getAssembly(
+  db: Db,
+  args: { assemblyId?: string; machine?: string; code?: string },
+): Promise<GetAssemblyResult> {
   let matched: { id: string; code: string; name: string; machine: string }[] = [];
   if (args.assemblyId) {
     const a = await db
@@ -309,7 +322,14 @@ export async function getAssembly(db: Db, args: { assemblyId?: string; machine?:
     if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
     return a.refNo.localeCompare(b.refNo);
   });
-  return { machine: matched[0].machine, assembly: { code: matched[0].code, name: matched[0].name }, items: sorted };
+  return {
+    // assemblyId lets the caller cite/link this diagram and lets the model
+    // pass it back to get_part/get_assembly by id.
+    assemblyId: matched[0].id,
+    machine: matched[0].machine,
+    assembly: { code: matched[0].code, name: matched[0].name },
+    items: sorted,
+  };
 }
 
 const LISTING_TOOL_DEFS: ChatToolDef[] = [
@@ -383,13 +403,16 @@ export function createCatalogToolset(db: Db): {
   execute: ToolExecutor;
   citations: () => Citation[];
 } {
-  const cited = new Map<string, Citation>();
+  // Keyed by id; parts and assemblies kept apart so a (theoretical) id clash
+  // can't drop one. Chips render in the order first surfaced this turn.
+  const citedParts = new Map<string, Citation>();
+  const citedAssemblies = new Map<string, Citation>();
 
   const execute: ToolExecutor = async (name, input) => {
     switch (name) {
       case 'search_parts': {
         const results = await searchParts(db, String(input.query ?? ''));
-        for (const r of results) cited.set(r.partId, r);
+        for (const r of results) citedParts.set(r.partId, { type: 'part', ...r });
         return { results };
       }
       case 'get_part': {
@@ -397,7 +420,14 @@ export function createCatalogToolset(db: Db): {
           partId: input.partId ? String(input.partId) : undefined,
           number: input.number ? String(input.number) : undefined,
         });
-        if (part) cited.set(part.id, { partId: part.id, name: part.name, primaryNumber: part.primaryNumber });
+        if (part) {
+          citedParts.set(part.id, {
+            type: 'part',
+            partId: part.id,
+            name: part.name,
+            primaryNumber: part.primaryNumber,
+          });
+        }
         return part ?? { error: 'not found' };
       }
       case 'list_machines':
@@ -407,16 +437,31 @@ export function createCatalogToolset(db: Db): {
           machineId: input.machineId ? String(input.machineId) : undefined,
           machine: input.machine ? String(input.machine) : undefined,
         });
-      case 'get_assembly':
-        return await getAssembly(db, {
+      case 'get_assembly': {
+        const result = await getAssembly(db, {
           assemblyId: input.assemblyId ? String(input.assemblyId) : undefined,
           machine: input.machine ? String(input.machine) : undefined,
           code: input.code ? String(input.code) : undefined,
         });
+        if ('assemblyId' in result) {
+          citedAssemblies.set(result.assemblyId, {
+            type: 'assembly',
+            assemblyId: result.assemblyId,
+            code: result.assembly.code,
+            name: result.assembly.name,
+            machine: result.machine,
+          });
+        }
+        return result;
+      }
       default:
         return { error: `unknown tool: ${name}` };
     }
   };
 
-  return { defs: CATALOG_TOOL_DEFS, execute, citations: () => [...cited.values()] };
+  return {
+    defs: CATALOG_TOOL_DEFS,
+    execute,
+    citations: () => [...citedParts.values(), ...citedAssemblies.values()],
+  };
 }
