@@ -194,6 +194,27 @@ export const aliases = sqliteTable('aliases', {
   index('aliases_updated_idx').on(t.updatedAt, t.id),
 ]);
 
+/**
+ * Manual substitute link between two DIFFERENT canonical parts that can be used
+ * in place of each other (e.g. 12000-KWB <-> 12000-KYZ). Distinct from
+ * `part_numbers` (same physical part, several printed numbers) and from a merge
+ * (which collapses a duplicate). The relationship is SYMMETRIC and stored as one
+ * undirected row per pair — inserts canonically order the pair by id string
+ * (partId = min, substitutePartId = max) so there is exactly one row per pair.
+ * Entered by hand: AI ingest can't know shop-level interchange knowledge.
+ */
+export const partSubstitutes = sqliteTable('part_substitutes', {
+  id: pk(),
+  partId: text('part_id').notNull().references(() => parts.id),
+  substitutePartId: text('substitute_part_id').notNull().references(() => parts.id),
+  note: text('note'),
+  ...timestamps(),
+}, (t) => [
+  index('part_substitutes_part_idx').on(t.partId),
+  index('part_substitutes_sub_idx').on(t.substitutePartId),
+  index('part_substitutes_updated_idx').on(t.updatedAt, t.id),
+]);
+
 // ---------------------------------------------------------------------------
 // Workshop labor (FRT) + users
 // ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import {
   machines,
   partColorVariants,
   partNumbers,
+  partSubstitutes,
   parts,
   serviceItems,
 } from '../db/schema';
@@ -39,6 +40,7 @@ const SYNC_TABLES: { name: string; table: any }[] = [
   { name: 'partColorVariants', table: partColorVariants },
   { name: 'aliases', table: aliases },
   { name: 'serviceItems', table: serviceItems },
+  { name: 'partSubstitutes', table: partSubstitutes },
 ];
 
 const DEFAULT_LIMIT = 1000;

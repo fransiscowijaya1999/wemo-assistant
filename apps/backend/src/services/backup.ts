@@ -10,7 +10,7 @@ import * as schema from '../db/schema';
 // you snapshot ALL of it from one deployment (e.g. local dev) and replay it into
 // another (e.g. prod) over HTTP, without re-running any extraction.
 //
-// Scope: the 13 catalog/data tables + every R2 diagram image they reference.
+// Scope: the 14 catalog/data tables + every R2 diagram image they reference.
 // Deliberately EXCLUDES `app_settings` (holds AI secrets) and `users` (auth) —
 // those are per-deployment, not catalog data.
 //
@@ -28,6 +28,7 @@ const TABLE_ORDER = [
   ['partNumbers', schema.partNumbers],
   ['partColorVariants', schema.partColorVariants],
   ['aliases', schema.aliases],
+  ['partSubstitutes', schema.partSubstitutes],
   ['assemblies', schema.assemblies],
   ['assemblyItems', schema.assemblyItems],
   ['itemResolutions', schema.itemResolutions],
