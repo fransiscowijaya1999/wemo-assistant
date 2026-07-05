@@ -3,14 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../browse/diagram_screen.dart';
 import 'data/lookup_repository.dart';
 import 'models.dart';
 import 'part_detail_screen.dart';
 import 'recent_parts_store.dart';
 
 /// Search tab: resolve any part number, name, or local term to the canonical
-/// part — fully offline against the replica. Empty state shows the clerk's
-/// recently viewed parts (the counter repeats the same lookups).
+/// part, and find diagram assemblies by code/name/machine — fully offline
+/// against the replica. Empty state shows the clerk's recently viewed parts
+/// (the counter repeats the same lookups).
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -22,6 +24,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   Timer? _debounce;
   List<PartSearchResult> _results = const [];
+  List<AssemblySearchResult> _assemblies = const [];
   bool _loading = false;
   String _query = '';
 
@@ -44,10 +47,13 @@ class _SearchScreenState extends State<SearchScreen> {
       _query = q;
       _loading = q.isNotEmpty;
     });
-    final res = q.isEmpty ? <PartSearchResult>[] : await repo.search(q);
+    final (res, asm) = q.isEmpty
+        ? (<PartSearchResult>[], <AssemblySearchResult>[])
+        : await (repo.search(q), repo.searchAssemblies(q)).wait;
     if (!mounted) return;
     setState(() {
       _results = res;
+      _assemblies = asm;
       _loading = false;
     });
   }
@@ -55,6 +61,12 @@ class _SearchScreenState extends State<SearchScreen> {
   void _open(PartSearchResult r) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => PartDetailScreen(partId: r.partId)),
+    );
+  }
+
+  void _openAssembly(AssemblySearchResult a) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DiagramScreen(assemblyId: a.assemblyId)),
     );
   }
 
@@ -73,7 +85,7 @@ class _SearchScreenState extends State<SearchScreen> {
               textInputAction: TextInputAction.search,
               onChanged: _onChanged,
               decoration: InputDecoration(
-                hintText: 'Part number, name, or local term',
+                hintText: 'Part number, name, diagram, or local term',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _query.isEmpty
                     ? null
@@ -96,11 +108,64 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _resultsArea(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_query.isEmpty) return _RecentList(onOpen: _open);
-    if (_results.isEmpty) return _Hint('No matches for “$_query”.');
-    return ListView.separated(
-      itemCount: _results.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => _ResultTile(result: _results[i], onTap: () => _open(_results[i])),
+    if (_results.isEmpty && _assemblies.isEmpty) {
+      return _Hint('No matches for “$_query”.');
+    }
+    return ListView(
+      children: [
+        if (_assemblies.isNotEmpty) ...[
+          const _SectionHeader('Diagrams'),
+          for (final a in _assemblies)
+            _AssemblyTile(result: a, onTap: () => _openAssembly(a)),
+        ],
+        if (_results.isNotEmpty) ...[
+          if (_assemblies.isNotEmpty) const _SectionHeader('Parts'),
+          for (final r in _results)
+            _ResultTile(result: r, onTap: () => _open(r)),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        text,
+        style: Theme.of(context)
+            .textTheme
+            .titleSmall
+            ?.copyWith(color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+}
+
+class _AssemblyTile extends StatelessWidget {
+  const _AssemblyTile({required this.result, required this.onTap});
+
+  final AssemblySearchResult result;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = result;
+    final parts = a.partCount == 1 ? '1 part' : '${a.partCount} parts';
+    return ListTile(
+      leading: Icon(
+        a.hasImage ? Icons.image_outlined : Icons.list_alt,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+      title: Text('${a.code}  ·  ${a.name}'),
+      subtitle: Text('${a.machineLabel}  ·  $parts'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }
@@ -147,7 +212,7 @@ class _RecentList extends StatelessWidget {
     final store = context.watch<RecentPartsStore>();
     final ids = store.ids;
     if (ids.isEmpty) {
-      return const _Hint('Type a part number, a name, or a local term (e.g. “paking”).');
+      return const _Hint('Search a part number, name, diagram, or local term (e.g. “paking”).');
     }
     return FutureBuilder<List<PartSearchResult>>(
       // ids in the key so the list refetches when a new part is viewed.
@@ -157,7 +222,7 @@ class _RecentList extends StatelessWidget {
         final items = snap.data;
         if (items == null) return const SizedBox.shrink();
         if (items.isEmpty) {
-          return const _Hint('Type a part number, a name, or a local term (e.g. “paking”).');
+          return const _Hint('Search a part number, name, diagram, or local term (e.g. “paking”).');
         }
         return ListView(
           children: [
