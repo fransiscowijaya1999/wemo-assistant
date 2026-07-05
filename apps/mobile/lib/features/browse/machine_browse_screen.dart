@@ -27,10 +27,26 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
       : 'frame';
   late final Future<bool> _fitmentAvailable =
       context.read<CatalogRepository>().fitmentAvailable(widget.machine.id);
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final repo = context.read<CatalogRepository>();
+    final query = _query.trim().toLowerCase();
+    final searching = query.isNotEmpty;
+    final terms = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    bool matches(AssemblyTile a) {
+      final hay = '${a.code} ${a.name}'.toLowerCase();
+      return terms.every(hay.contains);
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.machine.label)),
       body: StreamBuilder<List<AssemblyTile>>(
@@ -38,32 +54,43 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
         builder: (context, snap) {
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final all = snap.data!;
-          final tiles = all.where((a) => a.groupType == _group).toList();
+          // While searching, look across both groups (a clerk may not know
+          // whether "cover" is filed under engine or frame); otherwise the
+          // Engine/Frame toggle selects the group.
+          final tiles = searching
+              ? all.where(matches).toList()
+              : all.where((a) => a.groupType == _group).toList();
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: SegmentedButton<String>(
-                  segments: [
-                    ButtonSegment(
-                      value: 'engine',
-                      label: Text('Engine (${all.where((a) => a.groupType == 'engine').length})'),
-                      icon: const Icon(Icons.settings_suggest),
-                    ),
-                    ButtonSegment(
-                      value: 'frame',
-                      label: Text('Frame (${all.where((a) => a.groupType == 'frame').length})'),
-                      icon: const Icon(Icons.two_wheeler),
-                    ),
-                  ],
-                  selected: {_group},
-                  onSelectionChanged: (s) => setState(() => _group = s.first),
+              _searchField(),
+              if (!searching)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: SegmentedButton<String>(
+                    segments: [
+                      ButtonSegment(
+                        value: 'engine',
+                        label: Text('Engine (${all.where((a) => a.groupType == 'engine').length})'),
+                        icon: const Icon(Icons.settings_suggest),
+                      ),
+                      ButtonSegment(
+                        value: 'frame',
+                        label: Text('Frame (${all.where((a) => a.groupType == 'frame').length})'),
+                        icon: const Icon(Icons.two_wheeler),
+                      ),
+                    ],
+                    selected: {_group},
+                    onSelectionChanged: (s) => setState(() => _group = s.first),
+                  ),
                 ),
-              ),
-              _fitmentChip(),
+              if (!searching) _fitmentChip(),
               Expanded(
                 child: tiles.isEmpty
-                    ? Center(child: Text('No $_group diagrams.'))
+                    ? Center(
+                        child: Text(searching
+                            ? 'No diagrams match “$_query”.'
+                            : 'No $_group diagrams.'),
+                      )
                     : GridView.builder(
                         padding: const EdgeInsets.all(12),
                         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -79,6 +106,32 @@ class _MachineBrowseScreenState extends State<MachineBrowseScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// Filter this machine's diagrams by code or name (e.g. "F-12", "cover").
+  Widget _searchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: TextField(
+        controller: _searchController,
+        textInputAction: TextInputAction.search,
+        onChanged: (v) => setState(() => _query = v),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search diagrams (e.g. code or name)',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+        ),
       ),
     );
   }

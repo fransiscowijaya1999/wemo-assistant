@@ -27,27 +27,6 @@ class PartSearchResult {
   final String? machines;
 }
 
-/// One assembly hit: a diagram/parts group on a machine.
-class AssemblySearchResult {
-  const AssemblySearchResult({
-    required this.assemblyId,
-    required this.code,
-    required this.name,
-    required this.groupType,
-    required this.machineLabel,
-    required this.partCount,
-    required this.hasImage,
-  });
-
-  final String assemblyId;
-  final String code; // E-4 / F-13
-  final String name; // Cylinder Head
-  final String groupType; // engine | frame
-  final String machineLabel; // "Honda PCX160"
-  final int partCount;
-  final bool hasImage;
-}
-
 class PartNumberView {
   const PartNumberView({
     required this.value,
