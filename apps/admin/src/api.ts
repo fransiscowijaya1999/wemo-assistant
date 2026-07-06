@@ -51,11 +51,11 @@ export const api = {
     req<Machine>(`/machines/${encodeURIComponent(id)}`, { method: 'PATCH', admin: true, body: patch }),
   deleteMachine: (id: string) =>
     req<{ ok: boolean }>(`/machines/${encodeURIComponent(id)}`, { method: 'DELETE', admin: true }),
-  ingestPage: (imageBase64: string, mediaType: string) =>
+  ingestPage: (imageBase64: string, mediaType: string, mapDots = true) =>
     req<{ extracted: ExtractedPage }>('/ingest/page', {
       method: 'POST',
       admin: true,
-      body: { imageBase64, mediaType },
+      body: { imageBase64, mediaType, mapDots },
     }),
   commitPage: (machineId: string, groupType: string, extracted: ExtractedPage) =>
     req<{ ok: boolean; summary: CommitSummary }>('/ingest/commit', {

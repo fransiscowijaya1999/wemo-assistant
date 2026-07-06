@@ -15,15 +15,19 @@ export const ingestRoute = new Hono<{ Bindings: Bindings }>();
 // Extract an assembly page image -> structured DRAFT (admin reviews before committing).
 // Admin-only: ingestion is a write-side (catalog-building) operation.
 ingestRoute.post('/page', requireAdmin, async (c) => {
-  const body = await c.req.json<{ imageBase64?: string; mediaType?: string }>().catch(() => null);
+  const body = await c.req
+    .json<{ imageBase64?: string; mediaType?: string; mapDots?: boolean }>()
+    .catch(() => null);
   if (!body?.imageBase64) {
     return c.json({ error: 'imageBase64 is required' }, 400);
   }
   const mediaType = (body.mediaType ?? 'image/png') as ImageMediaType;
+  // Default true (existing behavior); admin can disable balloon-dot placement to save tokens.
+  const mapDots = body.mapDots !== false;
 
   const provider = getVisionProvider(await resolveAiConfig(getDb(c.env), c.env));
   try {
-    const extracted = await provider.extractCatalogPage({ imageBase64: body.imageBase64, mediaType });
+    const extracted = await provider.extractCatalogPage({ imageBase64: body.imageBase64, mediaType, mapDots });
     return c.json({ extracted });
   } catch (e) {
     return c.json({ error: 'extraction failed', detail: String(e) }, 502);

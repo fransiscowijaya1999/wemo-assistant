@@ -1,6 +1,17 @@
 import { api } from './api';
 import type { DiagramBox, EditorDot, ExtractedPage } from './types';
 
+// Whether ingest should ask the AI to place balloon dots. Persisted so the admin sets it
+// once; shared by the single-page (Ingest) and Batch flows. Default true (existing behavior);
+// turn off to save tokens when the AI dot placement isn't precise enough to keep.
+const MAP_DOTS_KEY = 'wemo.mapDots';
+export function getMapDots(): boolean {
+  return localStorage.getItem(MAP_DOTS_KEY) !== 'false';
+}
+export function setMapDots(on: boolean): void {
+  localStorage.setItem(MAP_DOTS_KEY, on ? 'true' : 'false');
+}
+
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

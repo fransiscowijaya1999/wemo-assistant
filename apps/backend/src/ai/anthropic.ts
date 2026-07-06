@@ -4,7 +4,23 @@ import type { z } from 'zod';
 import { extractedColorPage, extractedPage } from './types';
 import type { ExtractCatalogPageInput, VisionExtractionProvider } from './provider';
 
-const SYSTEM = `You extract structured data from Honda Indonesia motorcycle spare-parts catalog
+// The balloon-coordinate rule is opt-out (see mapDots): estimating dot positions costs
+// output tokens/thinking, and on many pages the AI placement is too rough to keep, so the
+// admin can turn it off and place dots by hand. The diagram bbox rule stays either way so
+// the image still gets cropped.
+const DOTS_RULE = `- For each item, return "dots": approximate {x, y} positions (normalized 0..1 to the full image) of
+  that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
+  times). Use an empty array if you cannot locate it. These are best-effort estimates a human will
+  fine-tune.`;
+
+const NO_DOTS_RULE = `- Do NOT locate balloon numbers on the diagram. Return an empty "dots": [] array for EVERY item —
+  spend no effort estimating balloon coordinates; a human places the dots later.`;
+
+function assemblySystem(mapDots: boolean): string {
+  return SYSTEM_TEMPLATE.replace('%DOTS_RULE%', mapDots ? DOTS_RULE : NO_DOTS_RULE);
+}
+
+const SYSTEM_TEMPLATE = `You extract structured data from Honda Indonesia motorcycle spare-parts catalog
 ("Katalog Suku Cadang") assembly pages. A page USUALLY has an assembly code + name, an exploded
 diagram with numbered balloons, a parts table, and often a Service item / F.R.T. table. But a page
 can also be a CONTINUATION of the previous assembly: the same assembly code + name in the header and
@@ -32,10 +48,7 @@ Rules:
   the exploded drawing and its balloon numbers but EXCLUDE the parts table, the page header bar and
   outer margins. If the page has NO exploded drawing at all (table-only page), or the drawing fills
   the entire page, return {x:0,y:0,width:1,height:1}.
-- For each item, return "dots": approximate {x, y} positions (normalized 0..1 to the full image) of
-  that ref's balloon number(s) on the diagram - one entry per balloon (a ref may appear multiple
-  times). Use an empty array if you cannot locate it. These are best-effort estimates a human will
-  fine-tune.
+%DOTS_RULE%
 - 2024-edition pages may add a "No. Seri" (frame serial range) column and split the quantity into
   one "Jumlah" column PER VARIANT (column headers like STD, ABS). If present:
   - Return "variantColumns": the variant column header names, verbatim and in printed order.
@@ -191,14 +204,17 @@ export function createAnthropicVisionProvider(
 ): VisionExtractionProvider {
   const client = new Anthropic({ apiKey, timeout: 120_000, maxRetries: 1 });
   return {
-    async extractCatalogPage({ imageBase64, mediaType }: ExtractCatalogPageInput) {
+    async extractCatalogPage({ imageBase64, mediaType, mapDots = true }: ExtractCatalogPageInput) {
+      const userText = mapDots
+        ? "Extract the assembly header, the full parts table, the service/FRT table, the diagram bounding box, and each ref's balloon coordinates from this catalog page."
+        : 'Extract the assembly header, the full parts table, the service/FRT table, and the diagram bounding box from this catalog page. Do not locate balloon coordinates — return empty "dots" arrays.';
       return streamExtraction(
         client,
         {
           model,
           max_tokens: 16000,
           ...thinkingFor(model),
-          system: SYSTEM,
+          system: assemblySystem(mapDots),
           messages: [
             {
               role: 'user',
@@ -206,7 +222,7 @@ export function createAnthropicVisionProvider(
                 { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
                 {
                   type: 'text',
-                  text: 'Extract the assembly header, the full parts table, the service/FRT table, the diagram bounding box, and each ref\'s balloon coordinates from this catalog page.',
+                  text: userText,
                 },
               ],
             },

@@ -14,8 +14,10 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   ThemeIcon,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconAlertCircle,
@@ -26,7 +28,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { api } from './api';
-import { autoMap, b64of } from './ingest-helpers';
+import { autoMap, b64of, getMapDots, setMapDots } from './ingest-helpers';
 import { notifySuccess } from './notify';
 import type { ExtractedColorPage, ExtractedPage } from './types';
 
@@ -129,6 +131,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
   const [pages, setPages] = useState<PageState[]>([]);
   const [phase, setPhase] = useState<Phase>(null);
   const [err, setErr] = useState('');
+  const [mapDots, setMapDotsState] = useState(getMapDots);
 
   const patch = (i: number, p: Partial<PageState>) =>
     setPages((prev) => prev.map((pg, k) => (k === i ? { ...pg, ...p } : pg)));
@@ -194,7 +197,7 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
       try {
         const { b64, mediaType } = b64of(p.dataUrl);
         if (p.type === 'assembly') {
-          const { extracted } = await api.ingestPage(b64, mediaType);
+          const { extracted } = await api.ingestPage(b64, mediaType, mapDots);
           patch(i, {
             status: 'extracted',
             extracted,
@@ -323,6 +326,22 @@ export function BatchIngest({ machineId, onCommitted }: { machineId: string; onC
           <Button variant="light" onClick={() => setAll('skip')}>
             All → skip
           </Button>
+          <Tooltip
+            multiline
+            w={240}
+            label="Ask the AI to place balloon dots on each diagram. Off saves tokens — diagrams are still cropped; place dots by hand in Dot mapping."
+          >
+            <Switch
+              size="xs"
+              checked={mapDots}
+              onChange={(e) => {
+                const on = e.currentTarget.checked;
+                setMapDotsState(on);
+                setMapDots(on);
+              }}
+              label="Auto-place dots"
+            />
+          </Tooltip>
           <Button leftSection={<IconScan size={16} />} onClick={extractSelected} disabled={!!phase}>
             Extract selected
           </Button>

@@ -10,11 +10,13 @@ import {
   Paper,
   Select,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
   ThemeIcon,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import {
   IconAlertCircle,
@@ -24,7 +26,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { api } from './api';
-import { autoMap, fileToDataUrl } from './ingest-helpers';
+import { autoMap, fileToDataUrl, getMapDots, setMapDots } from './ingest-helpers';
 import { notifyError, notifySuccess } from './notify';
 import type { ExtractedPage } from './types';
 
@@ -43,6 +45,7 @@ export function IngestView({ machineId, onCommitted }: { machineId: string; onCo
   const [busy, setBusy] = useState<Busy>('idle');
   const [err, setErr] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [mapDots, setMapDotsState] = useState(getMapDots);
 
   async function onFile(file: File | null) {
     if (!file) return;
@@ -65,7 +68,7 @@ export function IngestView({ machineId, onCommitted }: { machineId: string; onCo
     try {
       const [meta, b64] = imgDataUrl.split(',');
       const mediaType = meta.substring(5, meta.indexOf(';'));
-      const { extracted } = await api.ingestPage(b64, mediaType);
+      const { extracted } = await api.ingestPage(b64, mediaType, mapDots);
       setDraft(extracted);
     } catch (e) {
       setErr(String(e));
@@ -219,6 +222,22 @@ export function IngestView({ machineId, onCommitted }: { machineId: string; onCo
                 >
                   Extract
                 </Button>
+                <Tooltip
+                  multiline
+                  w={240}
+                  label="Ask the AI to place balloon dots on the diagram. Off saves tokens — the diagram image is still cropped; place dots by hand in Dot mapping."
+                >
+                  <Switch
+                    size="xs"
+                    checked={mapDots}
+                    onChange={(e) => {
+                      const on = e.currentTarget.checked;
+                      setMapDotsState(on);
+                      setMapDots(on);
+                    }}
+                    label="Auto-place dots"
+                  />
+                </Tooltip>
               </Group>
             </Stack>
           )}

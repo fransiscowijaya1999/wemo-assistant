@@ -5,6 +5,13 @@ export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/
 export type ExtractCatalogPageInput = {
   imageBase64: string;
   mediaType: ImageMediaType;
+  /**
+   * Ask the model to locate balloon coordinates (`dots`) for each ref. Default true.
+   * When false the model returns empty `dots` arrays — saves output tokens/thinking on
+   * pages where the AI-placed dots are too imprecise to be worth keeping (a human places
+   * them later in Dot mapping). The diagram bbox is still returned so the image is cropped.
+   */
+  mapDots?: boolean;
 };
 
 /**
