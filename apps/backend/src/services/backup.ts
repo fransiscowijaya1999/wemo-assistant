@@ -115,9 +115,14 @@ export async function buildBackup(db: Db, images: R2Bucket): Promise<BackupArchi
   return { version: BACKUP_VERSION, exportedAt: Date.now(), counts, imageCount: blobs.length, tables, images: blobs };
 }
 
-/** Upsert one table's rows by primary key, chunked to stay under D1's bound-param limit. */
-async function upsertRows(db: Db, table: unknown, rows: Record<string, unknown>[]): Promise<number> {
-  if (!rows.length) return 0;
+/**
+ * Build the chunked upsert statements for one table's rows (does NOT execute).
+ * Returned statements are run later via `db.batch()` so a whole group of inserts
+ * costs a single Worker subrequest — a full-catalog restore is thousands of rows,
+ * and one-subrequest-per-chunk blows the 1000/invocation limit.
+ */
+function buildUpsertStatements(table: unknown, rows: Record<string, unknown>[], db: Db): BatchStatement[] {
+  if (!rows.length) return [];
   // Heterogeneous tables in one loop — drizzle's per-table generics don't help here, so use `any`.
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const t = table as any;
@@ -129,12 +134,31 @@ async function upsertRows(db: Db, table: unknown, rows: Record<string, unknown>[
   );
   // D1 caps bound parameters per query at 100; size chunks by column count.
   const perChunk = Math.max(1, Math.floor(90 / entries.length));
+  const stmts: BatchStatement[] = [];
   for (let i = 0; i < rows.length; i += perChunk) {
     const chunk = rows.slice(i, i + perChunk);
-    await (db as any).insert(t).values(chunk).onConflictDoUpdate({ target: t[pkProp], set });
+    stmts.push((db as any).insert(t).values(chunk).onConflictDoUpdate({ target: t[pkProp], set }));
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
-  return rows.length;
+  return stmts;
+}
+
+// A prepared (not-yet-awaited) drizzle statement, as accepted by `db.batch()`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type BatchStatement = any;
+
+// Max prepared statements per `db.batch()` call. Each batch is one subrequest and
+// runs its statements sequentially in an implicit transaction, so ordering (and
+// thus FK-parent-first) is preserved across a batch.
+const BATCH_STATEMENTS = 20;
+
+async function runInBatches(db: Db, stmts: BatchStatement[]): Promise<void> {
+  for (let i = 0; i < stmts.length; i += BATCH_STATEMENTS) {
+    const group = stmts.slice(i, i + BATCH_STATEMENTS);
+    // drizzle's batch wants a non-empty tuple; the slice is always non-empty here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any).batch(group as [BatchStatement, ...BatchStatement[]]);
+  }
 }
 
 /** Replay an archive into this deployment's D1 + R2 (idempotent upsert). */
@@ -148,11 +172,17 @@ export async function restoreBackup(
     throw new RestoreError(`unrecognized backup (expected version ${BACKUP_VERSION})`);
   }
 
+  // Collect every table's upsert statements in FK-parent-first order, then run them
+  // in batched groups. Order is preserved within and across batches, so children
+  // never land before their parents.
   const counts: Record<string, number> = {};
+  const stmts: BatchStatement[] = [];
   for (const [name, table] of TABLE_ORDER) {
     const rows = Array.isArray(a.tables[name]) ? a.tables[name] : [];
-    counts[name] = await upsertRows(db, table, rows.map(deserializeRow));
+    counts[name] = rows.length;
+    stmts.push(...buildUpsertStatements(table, rows.map(deserializeRow), db));
   }
+  await runInBatches(db, stmts);
 
   let imageCount = 0;
   for (const img of a.images ?? []) {
