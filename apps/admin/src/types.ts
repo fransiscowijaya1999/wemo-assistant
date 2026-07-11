@@ -289,3 +289,10 @@ export type RecordWithItems = MaintenanceRecord & {
   customer?: Customer;
   vehicle?: CustomerVehicle;
 };
+
+/** Flat joined type returned by GET /vehicles (list all) */
+export type VehicleListRow = CustomerVehicle & {
+  customerName: string;
+  machineBrand: string;
+  machineModel: string;
+};

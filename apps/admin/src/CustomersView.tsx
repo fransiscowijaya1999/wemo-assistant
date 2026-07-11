@@ -19,7 +19,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { IconBike, IconEdit, IconPlus, IconTrash, IconUser, IconX } from '@tabler/icons-react';
 import { api } from './api';
-import type { Customer, CustomerVehicle, Machine, MaintenanceRecord, RecordWithItems } from './types';
+import type { Customer, CustomerVehicle, Machine, MaintenanceRecord, RecordWithItems, VehicleListRow } from './types';
 import { notifyError, notifySuccess } from './notify';
 
 type TabType = 'customers' | 'vehicles' | 'records';
@@ -32,6 +32,15 @@ export function CustomersView() {
   const [selectedVehicle, setSelectedVehicle] = useState<CustomerVehicle | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<RecordWithItems | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
+
+  // --- Vehicles tab state ---
+  const [allVehicles, setAllVehicles] = useState<VehicleListRow[]>([]);
+  const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // --- Records tab state ---
+  const [allRecords, setAllRecords] = useState<(MaintenanceRecord & { customerName: string })[]>([]);
+  const [recordSearch, setRecordSearch] = useState('');
+  const [recordTypeFilter, setRecordTypeFilter] = useState<string | null>(null);
 
   // Modal states
   const [editModalOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
@@ -63,9 +72,40 @@ export function CustomersView() {
     }
   }, []);
 
+  // Load all vehicles for the Vehicles tab
+  const refreshVehicles = useCallback(async () => {
+    try {
+      const v = await api.listVehicles(vehicleSearch || undefined);
+      setAllVehicles(v);
+    } catch (e) {
+      notifyError('Failed to load vehicles', String(e));
+    }
+  }, [vehicleSearch]);
+
+  // Load all records for the Records tab (with customer name)
+  const refreshRecords = useCallback(async () => {
+    try {
+      const [recs, custs] = await Promise.all([
+        api.listRecords({ type: recordTypeFilter ?? undefined }),
+        api.listCustomers(),
+      ]);
+      const custMap = new Map(custs.map((c) => [c.id, c.name]));
+      const enriched = recs.map((r) => ({ ...r, customerName: custMap.get(r.customerId) ?? r.customerId }));
+      setAllRecords(enriched);
+    } catch (e) {
+      notifyError('Failed to load records', String(e));
+    }
+  }, [recordTypeFilter]);
+
   useEffect(() => {
     void refreshCustomers();
   }, [refreshCustomers]);
+
+  // Refresh vehicles/records when tab changes
+  useEffect(() => {
+    if (tab === 'vehicles') void refreshVehicles();
+    if (tab === 'records') void refreshRecords();
+  }, [tab, refreshVehicles, refreshRecords]);
 
   // Filter customers by search
   const filteredCustomers = useMemo(() => {
@@ -78,6 +118,16 @@ export function CustomersView() {
         (c.tag?.toLowerCase().includes(lowerSearch) ?? false)
     );
   }, [customers, search]);
+
+  // Filter records by search (client-side)
+  const filteredRecords = useMemo(() => {
+    if (!recordSearch) return allRecords;
+    const q = recordSearch.toLowerCase();
+    return allRecords.filter((r) => {
+      const hay = `${r.customerName} ${r.description} ${r.invoiceNumber ?? ''} ${r.type}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [allRecords, recordSearch]);
 
   // Load customer details
   const loadCustomerDetails = useCallback(async (customer: Customer) => {
@@ -110,6 +160,30 @@ export function CustomersView() {
     }
   }, [refreshCustomers]);
 
+  const handleDeleteVehicle = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this vehicle? This action cannot be undone.')) return;
+    try {
+      await api.deleteVehicle(id);
+      notifySuccess('Vehicle deleted');
+      await refreshVehicles();
+      if (selectedCustomer) await loadCustomerDetails(selectedCustomer);
+    } catch (e) {
+      notifyError('Failed to delete vehicle', String(e));
+    }
+  }, [refreshVehicles, selectedCustomer, loadCustomerDetails]);
+
+  const handleDeleteRecord = useCallback(async (id: string) => {
+    if (!window.confirm('Delete this record? This action cannot be undone.')) return;
+    try {
+      await api.deleteRecord(id);
+      notifySuccess('Record deleted');
+      await refreshRecords();
+      if (selectedCustomer) await loadCustomerDetails(selectedCustomer);
+    } catch (e) {
+      notifyError('Failed to delete record', String(e));
+    }
+  }, [refreshRecords, selectedCustomer, loadCustomerDetails]);
+
   const handleSaveCustomer = useCallback(async () => {
     if (!editData.name) {
       notifyError('Name is required');
@@ -138,22 +212,33 @@ export function CustomersView() {
       return;
     }
     try {
+      // Only send allowed fields (strip timestamps, id, etc.)
+      const payload: Record<string, unknown> = {};
+      if (vehicleData.machineId !== undefined) payload.machineId = vehicleData.machineId;
+      if (vehicleData.licensePlate !== undefined) payload.licensePlate = vehicleData.licensePlate ?? null;
+      if (vehicleData.frameNumber !== undefined) payload.frameNumber = vehicleData.frameNumber ?? null;
+      if (vehicleData.colorId !== undefined) payload.colorId = vehicleData.colorId ?? null;
+      if (vehicleData.year !== undefined) payload.year = vehicleData.year ?? null;
+      if (vehicleData.nickname !== undefined) payload.nickname = vehicleData.nickname ?? null;
+      if (vehicleData.notes !== undefined) payload.notes = vehicleData.notes ?? null;
+
       if (selectedVehicle?.id) {
-        await api.updateVehicle(selectedVehicle.id, vehicleData);
+        await api.updateVehicle(selectedVehicle.id, payload as any);
         notifySuccess('Vehicle updated');
       } else if (selectedCustomer?.id) {
-        await api.createCustomerVehicle(selectedCustomer.id, vehicleData as any);
+        await api.createCustomerVehicle(selectedCustomer.id, payload as any);
         notifySuccess('Vehicle created');
       }
       closeVehicle();
       setVehicleData({});
+      await refreshVehicles();
       if (selectedCustomer) {
         await loadCustomerDetails(selectedCustomer);
       }
     } catch (e) {
       notifyError('Failed to save vehicle', String(e));
     }
-  }, [vehicleData, selectedVehicle, selectedCustomer, loadCustomerDetails, closeVehicle]);
+  }, [vehicleData, selectedVehicle, selectedCustomer, loadCustomerDetails, closeVehicle, refreshVehicles]);
 
   const handleSaveRecord = useCallback(async () => {
     if (!recordData.customerId || !recordData.description || !recordData.type) {
@@ -184,13 +269,14 @@ export function CustomersView() {
       }
       closeRecord();
       setRecordData({});
+      await refreshRecords();
       if (selectedCustomer) {
         await loadCustomerDetails(selectedCustomer);
       }
     } catch (e) {
       notifyError('Failed to save record', String(e));
     }
-  }, [recordData, selectedRecord, selectedCustomer, loadCustomerDetails, closeRecord]);
+  }, [recordData, selectedRecord, selectedCustomer, loadCustomerDetails, closeRecord, refreshRecords]);
 
   const openEditCustomer = useCallback((customer?: Customer) => {
     setEditType('customer');
@@ -201,14 +287,27 @@ export function CustomersView() {
 
   const openEditVehicle = useCallback((vehicle?: CustomerVehicle, customer?: Customer) => {
     setEditType('vehicle');
-    setVehicleData(vehicle ?? { machineId: '', licensePlate: '', frameNumber: '', colorId: '', year: null, nickname: '', notes: '' });
+    // When editing from the vehicles tab, we might not have a customer context
+    if (vehicle) {
+      setVehicleData({
+        machineId: vehicle.machineId,
+        licensePlate: vehicle.licensePlate,
+        frameNumber: vehicle.frameNumber,
+        colorId: vehicle.colorId,
+        year: vehicle.year,
+        nickname: vehicle.nickname,
+        notes: vehicle.notes,
+      });
+    } else {
+      setVehicleData({ machineId: '', licensePlate: '', frameNumber: '', colorId: '', year: null, nickname: '', notes: '' });
+    }
     refreshMachines();
     setSelectedVehicle(vehicle ?? null);
     if (customer) setSelectedCustomer(customer);
     openVehicle();
   }, [openVehicle, refreshMachines]);
 
-  const openEditRecord = useCallback((record?: RecordWithItems, customer?: Customer) => {
+  const openEditRecord = useCallback((record?: RecordWithItems | (MaintenanceRecord & { customerName?: string }), customer?: Customer) => {
     setEditType('record');
     if (record) {
       // Only pick editable fields — don't spread items, createdAt, updatedAt, etc.
@@ -225,7 +324,7 @@ export function CustomersView() {
     } else {
       setRecordData({ customerId: customer?.id ?? '', type: 'service', description: '', date: Date.now() });
     }
-    setSelectedRecord(record ?? null);
+    setSelectedRecord(record as RecordWithItems ?? null);
     if (customer) setSelectedCustomer(customer);
     openRecord();
   }, [openRecord]);
@@ -251,6 +350,62 @@ export function CustomersView() {
           </ActionIcon>
           <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.id); }}>
             <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  ));
+
+  // --- Vehicle rows (for Vehicles tab) ---
+  const vehicleRows = allVehicles.map((v) => (
+    <Table.Tr key={v.id}>
+      <Table.Td>
+        <Group gap="sm">
+          <IconBike size={16} />
+          <Text fw={500}>{v.nickname || `${v.machineBrand} ${v.machineModel}`}</Text>
+        </Group>
+      </Table.Td>
+      <Table.Td>{v.customerName}</Table.Td>
+      <Table.Td>{v.licensePlate ?? '-'}</Table.Td>
+      <Table.Td>{v.frameNumber ?? '-'}</Table.Td>
+      <Table.Td>{v.year ?? '-'}</Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <ActionIcon size="sm" variant="subtle" onClick={() => {
+            // Open edit modal — we pass the vehicle without customer context since we're in the standalone tab
+            setSelectedVehicle(v);
+            openEditVehicle(v);
+          }}>
+            <IconEdit size={14} />
+          </ActionIcon>
+          <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteVehicle(v.id)}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Group>
+      </Table.Td>
+    </Table.Tr>
+  ));
+
+  // --- Record rows (for Records tab) ---
+  const recordRows = filteredRecords.map((r) => (
+    <Table.Tr key={r.id}>
+      <Table.Td>{r.customerName}</Table.Td>
+      <Table.Td>
+        <Badge variant="light" color={r.type === 'service' ? 'blue' : 'green'}>
+          {r.type}
+        </Badge>
+      </Table.Td>
+      <Table.Td>{new Date(r.date).toLocaleDateString()}</Table.Td>
+      <Table.Td>{r.description}</Table.Td>
+      <Table.Td>{r.invoiceNumber ?? '-'}</Table.Td>
+      <Table.Td>{r.totalAmount ? `€${(r.totalAmount / 100).toFixed(2)}` : '-'}</Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <ActionIcon size="sm" variant="subtle" onClick={() => openEditRecord(r)}>
+            <IconEdit size={14} />
+          </ActionIcon>
+          <ActionIcon size="sm" variant="subtle" color="red" onClick={() => handleDeleteRecord(r.id)}>
+            <IconTrash size={14} />
           </ActionIcon>
         </Group>
       </Table.Td>
@@ -341,7 +496,7 @@ export function CustomersView() {
                         <ActionIcon size="sm" variant="subtle" onClick={(e) => { e.stopPropagation(); openEditVehicle(v, selectedCustomer); }}>
                           <IconEdit size={14} />
                         </ActionIcon>
-                        <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); /* delete vehicle */ }}>
+                        <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(v.id); }}>
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Group>
@@ -389,7 +544,7 @@ export function CustomersView() {
                         <ActionIcon size="sm" variant="subtle" onClick={(e) => { e.stopPropagation(); openEditRecord(r, selectedCustomer); }}>
                           <IconEdit size={14} />
                         </ActionIcon>
-                        <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); /* delete record */ }}>
+                        <ActionIcon size="sm" variant="subtle" color="red" onClick={(e) => { e.stopPropagation(); handleDeleteRecord(r.id); }}>
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Group>
@@ -426,6 +581,7 @@ export function CustomersView() {
           </Tabs.Tab>
         </Tabs.List>
 
+        {/* --- CUSTOMERS TAB --- */}
         <Tabs.Panel value="customers" pt="md">
           <TextInput
             placeholder="Search customers..."
@@ -453,12 +609,96 @@ export function CustomersView() {
           {customerDetail}
         </Tabs.Panel>
 
+        {/* --- VEHICLES TAB --- */}
         <Tabs.Panel value="vehicles" pt="md">
-          <Text c="dimmed">Vehicle management - select a customer to view vehicles</Text>
+          <TextInput
+            placeholder="Search vehicles by customer, plate, frame, or nickname..."
+            value={vehicleSearch}
+            onChange={(e) => setVehicleSearch(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') refreshVehicles(); }}
+            leftSection={<IconBike size={16} />}
+            mb="md"
+          />
+          <ScrollArea>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Vehicle</Table.Th>
+                  <Table.Th>Customer</Table.Th>
+                  <Table.Th>License Plate</Table.Th>
+                  <Table.Th>Frame Number</Table.Th>
+                  <Table.Th>Year</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {allVehicles.length === 0 ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={6}>
+                      <Text c="dimmed" ta="center" py="md">No vehicles found. Add vehicles from the Customers tab.</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ) : (
+                  vehicleRows
+                )}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
         </Tabs.Panel>
 
+        {/* --- RECORDS TAB --- */}
         <Tabs.Panel value="records" pt="md">
-          <Text c="dimmed">Maintenance records - select a customer to view records</Text>
+          <Group mb="md">
+            <TextInput
+              placeholder="Search records by customer, description, invoice..."
+              value={recordSearch}
+              onChange={(e) => setRecordSearch(e.currentTarget.value)}
+              leftSection={<IconEdit size={16} />}
+              style={{ flex: 1 }}
+            />
+            <Select
+              placeholder="All types"
+              data={[
+                { value: '', label: 'All types' },
+                { value: 'service', label: 'Service' },
+                { value: 'purchase', label: 'Purchase' },
+              ]}
+              value={recordTypeFilter}
+              onChange={(v) => setRecordTypeFilter(v || null)}
+              w={140}
+              clearable
+            />
+          </Group>
+          <ScrollArea>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Customer</Table.Th>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Date</Table.Th>
+                  <Table.Th>Description</Table.Th>
+                  <Table.Th>Invoice</Table.Th>
+                  <Table.Th>Amount</Table.Th>
+                  <Table.Th>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredRecords.length === 0 ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={7}>
+                      <Text c="dimmed" ta="center" py="md">
+                        {allRecords.length === 0
+                          ? 'No records found. Add records from the Customers tab.'
+                          : 'No records match your search.'}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ) : (
+                  recordRows
+                )}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
         </Tabs.Panel>
       </Tabs>
 
@@ -522,10 +762,10 @@ export function CustomersView() {
       <Modal opened={vehicleModalOpened} onClose={closeVehicle} title="Edit Vehicle" size="lg">
         <Stack gap="md">
           <Select
-            label="Machine ID *"
+            label="Machine *"
             value={vehicleData.machineId || null}
             onChange={(v) => setVehicleData({ ...vehicleData, machineId: v ?? '' })}
-            placeholder="Machine ID"
+            placeholder="Select a machine"
             data={machines.map((m) => ({ value: m.id, label: `${m.brand} ${m.model}` }))}
             searchable
             nothingFoundMessage="No machines found — create one in Browse"

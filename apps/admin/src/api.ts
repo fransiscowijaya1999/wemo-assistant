@@ -155,6 +155,10 @@ export const api = {
   createCustomerVehicle: (customerId: string, vehicle: Omit<CustomerVehicle, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'customerId'>) =>
     req<CustomerVehicle>(`/customers/${encodeURIComponent(customerId)}/vehicles`, { method: 'POST', admin: true, body: vehicle }),
 
+  listVehicles: (search?: string) => {
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    return req<(CustomerVehicle & { customerName: string; machineBrand: string; machineModel: string })[]>(`/vehicles${qs}`, { admin: true });
+  },
   getVehicle: (id: string) => req<CustomerVehicle>(`/vehicles/${encodeURIComponent(id)}`, { admin: true }),
   updateVehicle: (id: string, vehicle: Partial<CustomerVehicle>) =>
     req<CustomerVehicle>(`/vehicles/${encodeURIComponent(id)}`, { method: 'PUT', admin: true, body: vehicle }),
