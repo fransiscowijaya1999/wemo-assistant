@@ -149,11 +149,25 @@ export function CustomersView() {
       return;
     }
     try {
+      // Normalize date to epoch ms (handle both number and ISO string from API round-trip)
+      const dateMs = recordData.date != null
+        ? (typeof recordData.date === 'string' ? new Date(recordData.date).getTime() : recordData.date)
+        : undefined;
+      const payload = {
+        customerId: recordData.customerId,
+        customerVehicleId: recordData.customerVehicleId ?? null,
+        type: recordData.type,
+        date: dateMs,
+        description: recordData.description,
+        invoiceNumber: recordData.invoiceNumber ?? null,
+        totalAmount: recordData.totalAmount ?? null,
+        notes: recordData.notes ?? null,
+      };
       if (selectedRecord?.id) {
-        await api.updateRecord(selectedRecord.id, recordData);
+        await api.updateRecord(selectedRecord.id, payload);
         notifySuccess('Record updated');
       } else {
-        await api.createRecord(recordData as any);
+        await api.createRecord(payload as any);
         notifySuccess('Record created');
       }
       closeRecord();
@@ -183,7 +197,21 @@ export function CustomersView() {
 
   const openEditRecord = useCallback((record?: RecordWithItems, customer?: Customer) => {
     setEditType('record');
-    setRecordData(record ? { ...record, customerId: record.customerId } : { customerId: customer?.id ?? '', type: 'service', description: '', date: Date.now() });
+    if (record) {
+      // Only pick editable fields — don't spread items, createdAt, updatedAt, etc.
+      setRecordData({
+        customerId: record.customerId,
+        customerVehicleId: record.customerVehicleId,
+        type: record.type,
+        date: record.date,
+        description: record.description,
+        invoiceNumber: record.invoiceNumber,
+        totalAmount: record.totalAmount,
+        notes: record.notes,
+      });
+    } else {
+      setRecordData({ customerId: customer?.id ?? '', type: 'service', description: '', date: Date.now() });
+    }
     setSelectedRecord(record ?? null);
     if (customer) setSelectedCustomer(customer);
     openRecord();

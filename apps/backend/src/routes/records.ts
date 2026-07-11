@@ -59,11 +59,21 @@ recordsRoute.post('/', requireClerkWrite, async (c) => {
     return c.json({ error: 'type must be "service" or "purchase"' }, 400);
   }
   const db = getDb(c.env);
+  // Normalize date: accept epoch ms number or ISO string
+  const date = typeof body.date === 'number' ? new Date(body.date)
+    : typeof body.date === 'string' ? new Date(body.date)
+    : undefined;
   const [row] = await db.insert(maintenanceRecords).values({
     customerId: body.customerId,
     customerVehicleId: body.customerVehicleId ?? null,
     type: body.type,
-    description: body.description
+    date: date instanceof Date && !isNaN(date.getTime()) ? date : undefined,
+    description: body.description,
+    technicianId: body.technicianId ?? null,
+    clerkId: body.clerkId ?? null,
+    invoiceNumber: body.invoiceNumber ?? null,
+    totalAmount: body.totalAmount ?? null,
+    notes: body.notes ?? null,
   }).returning();
   return c.json(row, 201);
 });
@@ -75,10 +85,24 @@ recordsRoute.put('/:id', requireClerkWrite, async (c) => {
   const db = getDb(c.env);
   const existing = await db.select({ id: maintenanceRecords.id }).from(maintenanceRecords).where(eq(maintenanceRecords.id, id)).get();
   if (!existing) return c.json({ error: 'not found' }, 404);
-  const updateData = { ...body };
-  delete updateData.id;
-  delete updateData.createdAt;
-  delete updateData.deletedAt;
+  // Only allow known columns — strip items, updatedAt, and other noise
+  const allowedCols = ['customerId', 'customerVehicleId', 'type', 'date', 'description',
+    'technicianId', 'clerkId', 'invoiceNumber', 'totalAmount', 'notes'] as const;
+  const updateData: Record<string, unknown> = {};
+  for (const col of allowedCols) {
+    if (col in body) {
+      const val = (body as Record<string, unknown>)[col];
+      // Normalize date: accept epoch ms number or ISO string -> Date
+      if (col === 'date' && val != null) {
+        const d = typeof val === 'number' ? new Date(val)
+          : typeof val === 'string' ? new Date(val)
+          : null;
+        if (d instanceof Date && !isNaN(d.getTime())) updateData[col] = d;
+      } else {
+        updateData[col] = val ?? null;
+      }
+    }
+  }
   const [row] = await db.update(maintenanceRecords).set(updateData).where(eq(maintenanceRecords.id, id)).returning();
   return c.json(row);
 });
