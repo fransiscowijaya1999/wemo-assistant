@@ -9,6 +9,7 @@ import {
   Paper,
   ScrollArea,
   Stack,
+  Select,
   Table,
   Tabs,
   Text,
@@ -18,7 +19,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { IconBike, IconEdit, IconPlus, IconTrash, IconUser, IconX } from '@tabler/icons-react';
 import { api } from './api';
-import type { Customer, CustomerVehicle, MaintenanceRecord, RecordWithItems } from './types';
+import type { Customer, CustomerVehicle, Machine, MaintenanceRecord, RecordWithItems } from './types';
 import { notifyError, notifySuccess } from './notify';
 
 type TabType = 'customers' | 'vehicles' | 'records';
@@ -30,6 +31,7 @@ export function CustomersView() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer & { vehicles?: CustomerVehicle[]; records?: RecordWithItems[] } | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<CustomerVehicle | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<RecordWithItems | null>(null);
+  const [machines, setMachines] = useState<Machine[]>([]);
 
   // Modal states
   const [editModalOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
@@ -48,6 +50,16 @@ export function CustomersView() {
       setCustomers(data);
     } catch (e) {
       notifyError('Failed to load customers', String(e));
+    }
+  }, []);
+
+  // Load machines for vehicle form autocomplete
+  const refreshMachines = useCallback(async () => {
+    try {
+      const m = await api.listMachines();
+      setMachines(m);
+    } catch (e) {
+      notifyError('Could not load machines', String(e));
     }
   }, []);
 
@@ -190,10 +202,11 @@ export function CustomersView() {
   const openEditVehicle = useCallback((vehicle?: CustomerVehicle, customer?: Customer) => {
     setEditType('vehicle');
     setVehicleData(vehicle ?? { machineId: '', licensePlate: '', frameNumber: '', colorId: '', year: null, nickname: '', notes: '' });
+    refreshMachines();
     setSelectedVehicle(vehicle ?? null);
     if (customer) setSelectedCustomer(customer);
     openVehicle();
-  }, [openVehicle]);
+  }, [openVehicle, refreshMachines]);
 
   const openEditRecord = useCallback((record?: RecordWithItems, customer?: Customer) => {
     setEditType('record');
@@ -508,11 +521,15 @@ export function CustomersView() {
       {/* Vehicle Edit Modal */}
       <Modal opened={vehicleModalOpened} onClose={closeVehicle} title="Edit Vehicle" size="lg">
         <Stack gap="md">
-          <TextInput
+          <Select
             label="Machine ID *"
-            value={vehicleData.machineId ?? ''}
-            onChange={(e) => setVehicleData({ ...vehicleData, machineId: e.currentTarget.value })}
+            value={vehicleData.machineId || null}
+            onChange={(v) => setVehicleData({ ...vehicleData, machineId: v ?? '' })}
             placeholder="Machine ID"
+            data={machines.map((m) => ({ value: m.id, label: `${m.brand} ${m.model}` }))}
+            searchable
+            nothingFoundMessage="No machines found — create one in Browse"
+            clearable
           />
           <TextInput
             label="License Plate"
