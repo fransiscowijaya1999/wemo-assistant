@@ -22,6 +22,11 @@ part 'app_database.g.dart';
     ServiceItems,
     PartSubstitutes,
     SyncStates,
+    // CRM tables
+    Customers,
+    CustomerVehicles,
+    MaintenanceRecords,
+    MaintenanceItems,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -31,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +70,11 @@ class AppDatabase extends _$AppDatabase {
     'aliases': aliases,
     'serviceItems': serviceItems,
     'partSubstitutes': partSubstitutes,
+    // CRM tables
+    'customers': customers,
+    'customerVehicles': customerVehicles,
+    'maintenanceRecords': maintenanceRecords,
+    'maintenanceItems': maintenanceItems,
   };
 
   /// Wipe every mirrored catalog table so a full sync can rebuild from scratch.

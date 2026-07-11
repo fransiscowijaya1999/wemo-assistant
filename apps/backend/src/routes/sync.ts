@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, asc, eq, gt, lte, or } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
-import { requireClerkRead } from '../middleware/auth';
+import { requireClerkRead, requireClerkWrite } from '../middleware/auth';
 import { getDb } from '../db/client';
 import {
   aliases,
@@ -18,15 +18,21 @@ import {
   partSubstitutes,
   parts,
   serviceItems,
+  customers,
+  customerVehicles,
+  maintenanceRecords,
+  maintenanceItems,
 } from '../db/schema';
 
 export const syncRoute = new Hono<{ Bindings: Bindings }>();
 
-// Catalog tables the clerk replica needs (everything except `users`). Order is FIXED —
-// pagination walks the tables in this sequence, so it must not change between requests.
+// Catalog tables + CRM tables the clerk replica needs (everything except `users`). 
+// Order is FIXED — pagination walks the tables in this sequence, so it must not change 
+// between requests. CRM tables added at the end to maintain backward compatibility.
 // Typed loosely because they are aggregated in one loop; each has `updated_at` + `id`.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SYNC_TABLES: { name: string; table: any }[] = [
+  // Catalog tables (original sync order - do not change)
   { name: 'machines', table: machines },
   { name: 'machineVariants', table: machineVariants },
   { name: 'colors', table: colors },
@@ -41,6 +47,11 @@ const SYNC_TABLES: { name: string; table: any }[] = [
   { name: 'aliases', table: aliases },
   { name: 'serviceItems', table: serviceItems },
   { name: 'partSubstitutes', table: partSubstitutes },
+  // CRM tables (bidirectional sync - clerk can write)
+  { name: 'customers', table: customers },
+  { name: 'customerVehicles', table: customerVehicles },
+  { name: 'maintenanceRecords', table: maintenanceRecords },
+  { name: 'maintenanceItems', table: maintenanceItems },
 ];
 
 const DEFAULT_LIMIT = 1000;
@@ -144,4 +155,86 @@ syncRoute.get('/', requireClerkRead, async (c) => {
       : String(newSince);
 
   return c.json({ since, cursor, hasMore, limit, tables });
+});
+
+// Bidirectional sync: Clerk can POST changes back to the server
+// This endpoint accepts writes to CRM tables from the clerk mobile app
+syncRoute.post('/push', requireClerkWrite, async (c) => {
+  const db = getDb(c.env);
+  const body = await c.req.json().catch(() => null);
+
+  if (!body || typeof body !== 'object') {
+    return c.json({ error: 'invalid request body' }, 400);
+  }
+
+  // Validate that we only have CRM tables (for now)
+  const allowedTables = new Set(['customers', 'customerVehicles', 'maintenanceRecords', 'maintenanceItems']);
+  const tables = body.tables as Record<string, unknown[]> | undefined;
+
+  if (!tables) {
+    return c.json({ error: 'no tables provided' }, 400);
+  }
+
+  const processed: Record<string, { inserted: number; updated: number; deleted: number }> = {};
+
+  for (const [tableName, rows] of Object.entries(tables)) {
+    if (!allowedTables.has(tableName)) {
+      continue; // Skip non-CRM tables for now
+    }
+
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+
+    // Get the drizzle table
+    const tableMap: Record<string, any> = {
+      customers,
+      customerVehicles,
+      maintenanceRecords,
+      maintenanceItems,
+    };
+
+    const table = tableMap[tableName];
+    if (!table) continue;
+
+    let inserted = 0;
+    let updated = 0;
+    let deleted = 0;
+
+    for (const row of rows as any[]) {
+      const op = row._sync_op || (row.deletedAt ? 'delete' : (row.id ? 'update' : 'insert'));
+      
+      if (op === 'delete' || row.deletedAt) {
+        // Soft delete
+        await db
+          .update(table)
+          .set({ deletedAt: row.deletedAt || new Date() })
+          .where(eq(table.id, row.id));
+        deleted++;
+      } else if (row.id) {
+        // Update existing
+        const updateData: Record<string, unknown> = { ...row, updatedAt: new Date() };
+        delete updateData.id;
+        delete updateData.createdAt;
+        delete updateData._sync_op;
+        
+        await db
+          .update(table)
+          .set(updateData)
+          .where(eq(table.id, row.id));
+        updated++;
+      } else {
+        // Insert new
+        const insertData: Record<string, unknown> = { ...row, createdAt: new Date(), updatedAt: new Date() };
+        delete insertData._sync_op;
+        
+        await db.insert(table).values(insertData);
+        inserted++;
+      }
+    }
+
+    processed[tableName] = { inserted, updated, deleted };
+  }
+
+  return c.json({ ok: true, processed });
 });

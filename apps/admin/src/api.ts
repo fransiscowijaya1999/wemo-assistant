@@ -1,19 +1,25 @@
 import type {
   AiSettings,
   Assembly,
+  BrandStats,
   ChatMessage,
   ColorCommitSummary,
   CommitSummary,
   CorrectionProposal,
+  Customer,
+  CustomerVehicle,
   EditorDot,
   ExtractedColorPage,
   ExtractedPage,
   FullAssembly,
+  MaintenanceItem,
+  MaintenanceRecord,
   Machine,
   MachineVariant,
   PartFull,
   Proposal,
   SearchResult,
+  WarrantyExpiryResponse,
 } from './types';
 
 const BASE = '/api';
@@ -132,4 +138,64 @@ export const api = {
     s: Partial<Pick<AiSettings, 'chatProvider' | 'chatModel' | 'visionModel' | 'anthropicKey' | 'deepseekKey'>>,
   ) =>
     req<AiSettings>('/settings/ai', { method: 'PUT', admin: true, body: s }),
+
+  // CRM API methods
+  listCustomers: () => req<Customer[]>('/customers', { admin: true }),
+  getCustomer: (id: string) => req<Customer>(`/customers/${encodeURIComponent(id)}`, { admin: true }),
+  createCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>) =>
+    req<Customer>('/customers', { method: 'POST', admin: true, body: customer }),
+  updateCustomer: (id: string, customer: Partial<Customer>) =>
+    req<Customer>(`/customers/${encodeURIComponent(id)}`, { method: 'PUT', admin: true, body: customer }),
+  deleteCustomer: (id: string) =>
+    req<{ ok: boolean }>(`/customers/${encodeURIComponent(id)}`, { method: 'DELETE', admin: true }),
+  getCustomerVehicles: (customerId: string) =>
+    req<CustomerVehicle[]>(`/customers/${encodeURIComponent(customerId)}/vehicles`, { admin: true }),
+  getCustomerRecords: (customerId: string) =>
+    req<MaintenanceRecord[]>(`/customers/${encodeURIComponent(customerId)}/records`, { admin: true }),
+  createCustomerVehicle: (customerId: string, vehicle: Omit<CustomerVehicle, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'customerId'>) =>
+    req<CustomerVehicle>(`/customers/${encodeURIComponent(customerId)}/vehicles`, { method: 'POST', admin: true, body: vehicle }),
+
+  getVehicle: (id: string) => req<CustomerVehicle>(`/vehicles/${encodeURIComponent(id)}`, { admin: true }),
+  updateVehicle: (id: string, vehicle: Partial<CustomerVehicle>) =>
+    req<CustomerVehicle>(`/vehicles/${encodeURIComponent(id)}`, { method: 'PUT', admin: true, body: vehicle }),
+  deleteVehicle: (id: string) =>
+    req<{ ok: boolean }>(`/vehicles/${encodeURIComponent(id)}`, { method: 'DELETE', admin: true }),
+  getVehicleRecords: (vehicleId: string) =>
+    req<MaintenanceRecord[]>(`/vehicles/${encodeURIComponent(vehicleId)}/records`, { admin: true }),
+
+  listRecords: (params?: { customerId?: string; vehicleId?: string; type?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.customerId) qs.set('customerId', params.customerId);
+    if (params?.vehicleId) qs.set('vehicleId', params.vehicleId);
+    if (params?.type) qs.set('type', params.type);
+    const queryString = qs.toString();
+    return req<MaintenanceRecord[]>(`/records${queryString ? `?${queryString}` : ''}`, { admin: true });
+  },
+  getRecord: (id: string) => req<MaintenanceRecord>(`/records/${encodeURIComponent(id)}`, { admin: true }),
+  createRecord: (record: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>) =>
+    req<MaintenanceRecord>('/records', { method: 'POST', admin: true, body: record }),
+  updateRecord: (id: string, record: Partial<MaintenanceRecord>) =>
+    req<MaintenanceRecord>(`/records/${encodeURIComponent(id)}`, { method: 'PUT', admin: true, body: record }),
+  deleteRecord: (id: string) =>
+    req<{ ok: boolean }>(`/records/${encodeURIComponent(id)}`, { method: 'DELETE', admin: true }),
+  getRecordItems: (recordId: string) =>
+    req<MaintenanceItem[]>(`/records/${encodeURIComponent(recordId)}/items`, { admin: true }),
+
+  getItem: (id: string) => req<MaintenanceItem>(`/record-items/${encodeURIComponent(id)}`, { admin: true }),
+  createItem: (recordId: string, item: Omit<MaintenanceItem, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'maintenanceRecordId'>) =>
+    req<MaintenanceItem>(`/record-items/${encodeURIComponent(recordId)}/items`, { method: 'POST', admin: true, body: item }),
+  updateItem: (id: string, item: Partial<MaintenanceItem>) =>
+    req<MaintenanceItem>(`/record-items/${encodeURIComponent(id)}`, { method: 'PUT', admin: true, body: item }),
+  deleteItem: (id: string) =>
+    req<{ ok: boolean }>(`/record-items/${encodeURIComponent(id)}`, { method: 'DELETE', admin: true }),
+
+  getBrandStats: (limit?: number) =>
+    req<{ brands: BrandStats[] }>(`/stats/records/brands${limit ? `?limit=${limit}` : ''}`, { admin: true }),
+  getExpiringWarranties: (days?: number, limit?: number) => {
+    const qs = new URLSearchParams();
+    if (days) qs.set('days', String(days));
+    if (limit) qs.set('limit', String(limit));
+    const queryString = qs.toString();
+    return req<WarrantyExpiryResponse>(`/stats/warranty/expiring${queryString ? `?${queryString}` : ''}`, { admin: true });
+  },
 };

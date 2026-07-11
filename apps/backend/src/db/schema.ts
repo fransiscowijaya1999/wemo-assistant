@@ -250,3 +250,103 @@ export const users = sqliteTable('users', {
   displayName: text('display_name'),
   ...timestamps(),
 });
+
+// ---------------------------------------------------------------------------
+// CRM - Customer Relationship Management
+// Clerk can READ + WRITE all CRM tables
+// ---------------------------------------------------------------------------
+
+export const customers = sqliteTable('customers', {
+  id: pk(),
+  name: text('name').notNull(),
+  phone: text('phone'),
+  phoneAlt: text('phone_alt'),
+  email: text('email'),
+  address: text('address'),
+  notes: text('notes'),
+  tag: text('tag'),
+  ...timestamps(),
+}, (t) => [
+  index('customers_name_idx').on(t.name),
+  index('customers_phone_idx').on(t.phone),
+  index('customers_updated_idx').on(t.updatedAt, t.id),
+]);
+
+export const customerVehicles = sqliteTable('customer_vehicles', {
+  id: pk(),
+  customerId: text('customer_id').notNull().references(() => customers.id),
+  machineId: text('machine_id').notNull().references(() => machines.id),
+  licensePlate: text('license_plate'),
+  frameNumber: text('frame_number'),
+  colorId: text('color_id').references(() => colors.id),
+  year: integer('year'),
+  nickname: text('nickname'),
+  notes: text('notes'),
+  ...timestamps(),
+}, (t) => [
+  index('customer_vehicles_customer_idx').on(t.customerId),
+  index('customer_vehicles_machine_idx').on(t.machineId),
+  index('customer_vehicles_plate_idx').on(t.licensePlate),
+  index('customer_vehicles_updated_idx').on(t.updatedAt, t.id),
+]);
+
+export type MaintenanceRecordType = 'service' | 'purchase';
+
+export const maintenanceRecords = sqliteTable('maintenance_records', {
+  id: pk(),
+  customerVehicleId: text('customer_vehicle_id').references(() => customerVehicles.id),
+  customerId: text('customer_id').notNull().references(() => customers.id),
+  type: text('type', { enum: ['service', 'purchase'] }).notNull(),
+  date: integer('date', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+  description: text('description').notNull(),
+  technicianId: text('technician_id').references(() => users.id),
+  clerkId: text('clerk_id').references(() => users.id),
+  invoiceNumber: text('invoice_number'),
+  totalAmount: integer('total_amount'),
+  notes: text('notes'),
+  ...timestamps(),
+}, (t) => [
+  index('maintenance_records_customer_idx').on(t.customerId),
+  index('maintenance_records_vehicle_idx').on(t.customerVehicleId),
+  index('maintenance_records_type_idx').on(t.type),
+  index('maintenance_records_date_idx').on(t.date),
+  index('maintenance_records_updated_idx').on(t.updatedAt, t.id),
+]);
+
+export type MaintenanceItemCategory = 
+  | 'bearing' | 'chain' | 'sprocket' | 'oil' | 'tire' | 'brake_pad' | 'battery' | 'spark_plug'
+  | 'filter' | 'seal' | 'gasket' | 'engine_part' | 'body_part' | 'electrical' | 'other';
+
+export type WarrantyPeriodUnit = 'days' | 'months';
+
+export const maintenanceItems = sqliteTable('maintenance_items', {
+  id: pk(),
+  maintenanceRecordId: text('maintenance_record_id').notNull().references(() => maintenanceRecords.id),
+  category: text('category', {
+    enum: ['bearing', 'chain', 'sprocket', 'oil', 'tire', 'brake_pad', 'battery', 'spark_plug', 
+           'filter', 'seal', 'gasket', 'engine_part', 'body_part', 'electrical', 'other']
+  }).notNull(),
+  partId: text('part_id').references(() => parts.id),
+  partNumberId: text('part_number_id').references(() => partNumbers.id),
+  partNumber: text('part_number'),
+  brand: text('brand'),
+  quantity: integer('quantity').notNull().default(1),
+  hasWarranty: integer('has_warranty', { mode: 'boolean' }).notNull().default(false),
+  warrantyPeriodValue: integer('warranty_period_value'),
+  warrantyPeriodUnit: text('warranty_period_unit', { enum: ['days', 'months'] }),
+  warrantyStartDate: integer('warranty_start_date', { mode: 'timestamp_ms' }),
+  warrantyExpiryDate: integer('warranty_expiry_date', { mode: 'timestamp_ms' }),
+  warrantyNotes: text('warranty_notes'),
+  unitPrice: integer('unit_price'),
+  notes: text('notes'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  ...timestamps(),
+}, (t) => [
+  index('maintenance_items_record_idx').on(t.maintenanceRecordId),
+  index('maintenance_items_part_idx').on(t.partId),
+  index('maintenance_items_part_number_idx').on(t.partNumberId),
+  index('maintenance_items_category_idx').on(t.category),
+  index('maintenance_items_brand_idx').on(t.brand),
+  index('maintenance_items_warranty_expiry_idx').on(t.warrantyExpiryDate),
+  index('maintenance_items_updated_idx').on(t.updatedAt, t.id),
+]);

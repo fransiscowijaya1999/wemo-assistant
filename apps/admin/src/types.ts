@@ -175,3 +175,117 @@ export type Proposal = {
 };
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+// --- CRM Types ---
+
+export type MaintenanceRecordType = 'service' | 'purchase';
+
+export type MaintenanceItemCategory =
+  | 'bearing' | 'chain' | 'sprocket' | 'oil' | 'tire' | 'brake_pad' | 'battery' | 'spark_plug'
+  | 'filter' | 'seal' | 'gasket' | 'engine_part' | 'body_part' | 'electrical' | 'other';
+
+export type WarrantyPeriodUnit = 'days' | 'months';
+
+export type Customer = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  phoneAlt?: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  tag?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number | null;
+};
+
+export type CustomerVehicle = {
+  id: string;
+  customerId: string;
+  machineId: string;
+  licensePlate?: string | null;
+  frameNumber?: string | null;
+  colorId?: string | null;
+  year?: number | null;
+  nickname?: string | null;
+  notes?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number | null;
+};
+
+export type MaintenanceRecord = {
+  id: string;
+  customerVehicleId?: string | null;
+  customerId: string;
+  type: MaintenanceRecordType;
+  date: number;
+  description: string;
+  technicianId?: string | null;
+  clerkId?: string | null;
+  invoiceNumber?: string | null;
+  totalAmount?: number | null;
+  notes?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number | null;
+};
+
+export type MaintenanceItem = {
+  id: string;
+  maintenanceRecordId: string;
+  category: MaintenanceItemCategory;
+  partId?: string | null;
+  partNumberId?: string | null;
+  partNumber?: string | null;
+  brand?: string | null;
+  quantity: number;
+  hasWarranty: boolean;
+  warrantyPeriodValue?: number | null;
+  warrantyPeriodUnit?: WarrantyPeriodUnit | null;
+  warrantyStartDate?: number | null;
+  warrantyExpiryDate?: number | null;
+  warrantyNotes?: string | null;
+  unitPrice?: number | null;
+  notes?: string | null;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number | null;
+};
+
+export type BrandStats = {
+  brand: string;
+  count: number;
+};
+
+export type ExpiringWarrantyItem = MaintenanceItem & {
+  daysUntilExpiry: number;
+  expiryDate: string;
+};
+
+export type WarrantyExpiryResponse = {
+  expiring: ExpiringWarrantyItem[];
+  daysThreshold: number;
+  count: number;
+};
+
+export type CustomerWithVehicles = Customer & {
+  vehicles: CustomerVehicle[];
+  records: MaintenanceRecord[];
+};
+
+export type VehicleWithCustomer = CustomerVehicle & {
+  customer: Customer;
+  machineBrand?: string;
+  machineModel?: string;
+  colorName?: string;
+  records: MaintenanceRecord[];
+};
+
+export type RecordWithItems = MaintenanceRecord & {
+  items: MaintenanceItem[];
+  customer?: Customer;
+  vehicle?: CustomerVehicle;
+};

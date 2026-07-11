@@ -85,6 +85,15 @@ class SyncRepository {
         return _apply(db.serviceItems, rows, _serviceItem);
       case 'partSubstitutes':
         return _apply(db.partSubstitutes, rows, _partSubstitute);
+      // CRM tables
+      case 'customers':
+        return _apply(db.customers, rows, _customer);
+      case 'customerVehicles':
+        return _apply(db.customerVehicles, rows, _customerVehicle);
+      case 'maintenanceRecords':
+        return _apply(db.maintenanceRecords, rows, _maintenanceRecord);
+      case 'maintenanceItems':
+        return _apply(db.maintenanceItems, rows, _maintenanceItem);
       default:
         return; // unknown table (forward-compat): ignore
     }
@@ -281,6 +290,73 @@ ServiceItemsCompanion _serviceItem(Map<String, dynamic> r) => ServiceItemsCompan
   refNo: Value(r['refNo'] as String?),
   frtHours: Value(_dN(r['frtHours'])),
   note: Value(r['note'] as String?),
+  updatedAt: _dt(r['updatedAt']),
+  deletedAt: Value(_dtN(r['deletedAt'])),
+);
+
+// CRM mappers
+
+CustomersCompanion _customer(Map<String, dynamic> r) => CustomersCompanion.insert(
+  id: r['id'] as String,
+  name: r['name'] as String,
+  phone: Value(r['phone'] as String?),
+  phoneAlt: Value(r['phoneAlt'] as String?),
+  email: Value(r['email'] as String?),
+  address: Value(r['address'] as String?),
+  notes: Value(r['notes'] as String?),
+  tag: Value(r['tag'] as String?),
+  updatedAt: _dt(r['updatedAt']),
+  deletedAt: Value(_dtN(r['deletedAt'])),
+);
+
+CustomerVehiclesCompanion _customerVehicle(Map<String, dynamic> r) => CustomerVehiclesCompanion.insert(
+  id: r['id'] as String,
+  customerId: r['customerId'] as String,
+  machineId: r['machineId'] as String,
+  licensePlate: Value(r['licensePlate'] as String?),
+  frameNumber: Value(r['frameNumber'] as String?),
+  colorId: Value(r['colorId'] as String?),
+  year: Value(r['year'] as int?),
+  nickname: Value(r['nickname'] as String?),
+  notes: Value(r['notes'] as String?),
+  updatedAt: _dt(r['updatedAt']),
+  deletedAt: Value(_dtN(r['deletedAt'])),
+);
+
+MaintenanceRecordsCompanion _maintenanceRecord(Map<String, dynamic> r) => MaintenanceRecordsCompanion.insert(
+  id: r['id'] as String,
+  customerVehicleId: Value(r['customerVehicleId'] as String?),
+  customerId: r['customerId'] as String,
+  type: r['type'] as String,
+  date: Value(r['date'] as int?),
+  description: r['description'] as String,
+  technicianId: Value(r['technicianId'] as String?),
+  clerkId: Value(r['clerkId'] as String?),
+  invoiceNumber: Value(r['invoiceNumber'] as String?),
+  totalAmount: Value(r['totalAmount'] as int?),
+  notes: Value(r['notes'] as String?),
+  updatedAt: _dt(r['updatedAt']),
+  deletedAt: Value(_dtN(r['deletedAt'])),
+);
+
+MaintenanceItemsCompanion _maintenanceItem(Map<String, dynamic> r) => MaintenanceItemsCompanion.insert(
+  id: r['id'] as String,
+  maintenanceRecordId: r['maintenanceRecordId'] as String,
+  category: r['category'] as String,
+  partId: Value(r['partId'] as String?),
+  partNumberId: Value(r['partNumberId'] as String?),
+  partNumber: Value(r['partNumber'] as String?),
+  brand: Value(r['brand'] as String?),
+  quantity: Value(r['quantity'] as int? ?? 1),
+  hasWarranty: Value(r['hasWarranty'] as bool? ?? false),
+  warrantyPeriodValue: Value(r['warrantyPeriodValue'] as int?),
+  warrantyPeriodUnit: Value(r['warrantyPeriodUnit'] as String?),
+  warrantyStartDate: Value(r['warrantyStartDate'] as int?),
+  warrantyExpiryDate: Value(r['warrantyExpiryDate'] as int?),
+  warrantyNotes: Value(r['warrantyNotes'] as String?),
+  unitPrice: Value(r['unitPrice'] as int?),
+  notes: Value(r['notes'] as String?),
+  sortOrder: Value(r['sortOrder'] as int? ?? 0),
   updatedAt: _dt(r['updatedAt']),
   deletedAt: Value(_dtN(r['deletedAt'])),
 );

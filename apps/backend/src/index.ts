@@ -9,6 +9,11 @@ import { syncRoute } from './routes/sync';
 import { chatRoute } from './routes/chat';
 import { adminRoute } from './routes/admin';
 import { settingsRoute } from './routes/settings';
+import { customersRoute } from './routes/customers';
+import { vehiclesRoute } from './routes/vehicles';
+import { recordsRoute } from './routes/records';
+import { recordItemsRoute } from './routes/record-items';
+import { statsRoute } from './routes/stats';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -34,6 +39,13 @@ app.route('/sync', syncRoute);
 app.route('/chat', chatRoute);
 app.route('/admin', adminRoute);
 app.route('/settings', settingsRoute);
+
+// CRM Routes
+app.route('/customers', customersRoute);
+app.route('/vehicles', vehiclesRoute);
+app.route('/records', recordsRoute);
+app.route('/record-items', recordItemsRoute);
+app.route('/stats', statsRoute);
 
 export default app;
 export type { Bindings };

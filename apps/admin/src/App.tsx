@@ -26,6 +26,7 @@ import {
   IconSettings,
   IconSparkles,
   IconSun,
+  IconUsers,
 } from '@tabler/icons-react';
 import { api } from './api';
 import type { Machine } from './types';
@@ -39,6 +40,7 @@ import { BrowseView } from './BrowseView';
 import { SubstitutesView } from './SubstitutesView';
 import { AssistantView } from './AssistantView';
 import { SettingsView } from './SettingsView';
+import { CustomersView } from './CustomersView';
 
 function NeedMachine() {
   return <Text c="dimmed">Select a machine (top-right), or create one in the Browse tab, to continue.</Text>;
@@ -141,6 +143,9 @@ function Shell() {
                 <Tabs.Tab value="assistant" leftSection={<IconSparkles size={16} />}>
                   Assistant
                 </Tabs.Tab>
+                <Tabs.Tab value="customers" leftSection={<IconUsers size={16} />}>
+                  CRM
+                </Tabs.Tab>
                 <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
                   Settings
                 </Tabs.Tab>
@@ -172,6 +177,9 @@ function Shell() {
               </Tabs.Panel>
               <Tabs.Panel value="assistant" pt="md" keepMounted>
                 <AssistantView />
+              </Tabs.Panel>
+              <Tabs.Panel value="customers" pt="md">
+                <CustomersView />
               </Tabs.Panel>
               <Tabs.Panel value="settings" pt="md">
                 <SettingsView />

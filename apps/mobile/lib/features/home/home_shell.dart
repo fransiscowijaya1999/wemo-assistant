@@ -5,6 +5,7 @@ import '../../core/connectivity/connectivity_controller.dart';
 import '../../core/util/relative_time.dart';
 import '../assistant/assistant_screen.dart';
 import '../browse/machine_list_screen.dart';
+import '../crm/screens/customer_list_screen.dart';
 import '../search/search_screen.dart';
 import '../sync/sync_controller.dart';
 import '../sync/sync_screen.dart';
@@ -66,7 +67,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [MachineListScreen(), SearchScreen(), AssistantScreen(), SyncScreen()],
+        children: const [MachineListScreen(), SearchScreen(), CustomerListScreen(), AssistantScreen(), SyncScreen()],
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -78,6 +79,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             destinations: const [
               NavigationDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view), label: 'Browse'),
               NavigationDestination(icon: Icon(Icons.search), selectedIcon: Icon(Icons.search), label: 'Search'),
+              NavigationDestination(icon: Icon(Icons.people_outlined), selectedIcon: Icon(Icons.people), label: 'CRM'),
               NavigationDestination(icon: Icon(Icons.smart_toy_outlined), selectedIcon: Icon(Icons.smart_toy), label: 'Assistant'),
               NavigationDestination(icon: Icon(Icons.sync_outlined), selectedIcon: Icon(Icons.sync), label: 'Sync'),
             ],

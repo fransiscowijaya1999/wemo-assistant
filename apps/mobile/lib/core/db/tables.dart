@@ -192,6 +192,90 @@ class Aliases extends Table with _Synced {
   Set<Column> get primaryKey => {id};
 }
 
+// --- CRM Tables ---
+
+class Customers extends Table with _Synced {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get phoneAlt => text().nullable()();
+  TextColumn get email => text().nullable()();
+  TextColumn get address => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get tag => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@TableIndex(name: 'customer_vehicles_customer', columns: {#customerId})
+@TableIndex(name: 'customer_vehicles_machine', columns: {#machineId})
+@TableIndex(name: 'customer_vehicles_plate', columns: {#licensePlate})
+class CustomerVehicles extends Table with _Synced {
+  TextColumn get id => text()();
+  TextColumn get customerId => text()();
+  TextColumn get machineId => text()();
+  TextColumn get licensePlate => text().nullable()();
+  TextColumn get frameNumber => text().nullable()();
+  TextColumn get colorId => text().nullable()();
+  IntColumn get year => integer().nullable()();
+  TextColumn get nickname => text().nullable()();
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@TableIndex(name: 'maintenance_records_customer', columns: {#customerId})
+@TableIndex(name: 'maintenance_records_vehicle', columns: {#customerVehicleId})
+@TableIndex(name: 'maintenance_records_type', columns: {#type})
+@TableIndex(name: 'maintenance_records_date', columns: {#date})
+class MaintenanceRecords extends Table with _Synced {
+  TextColumn get id => text()();
+  TextColumn get customerVehicleId => text().nullable()();
+  TextColumn get customerId => text()();
+  TextColumn get type => text()(); // 'service' | 'purchase'
+  IntColumn get date => integer()(); // timestamp_ms
+  TextColumn get description => text()();
+  TextColumn get technicianId => text().nullable()();
+  TextColumn get clerkId => text().nullable()();
+  TextColumn get invoiceNumber => text().nullable()();
+  IntColumn get totalAmount => integer().nullable()();
+  TextColumn get notes => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@TableIndex(name: 'maintenance_items_record', columns: {#maintenanceRecordId})
+@TableIndex(name: 'maintenance_items_part', columns: {#partId})
+@TableIndex(name: 'maintenance_items_part_number', columns: {#partNumberId})
+@TableIndex(name: 'maintenance_items_category', columns: {#category})
+@TableIndex(name: 'maintenance_items_brand', columns: {#brand})
+@TableIndex(name: 'maintenance_items_warranty_expiry', columns: {#warrantyExpiryDate})
+class MaintenanceItems extends Table with _Synced {
+  TextColumn get id => text()();
+  TextColumn get maintenanceRecordId => text()();
+  TextColumn get category => text()();
+  TextColumn get partId => text().nullable()();
+  TextColumn get partNumberId => text().nullable()();
+  TextColumn get partNumber => text().nullable()();
+  TextColumn get brand => text().nullable()();
+  IntColumn get quantity => integer().withDefault(const Constant(1))();
+  BoolColumn get hasWarranty => boolean().withDefault(const Constant(false))();
+  IntColumn get warrantyPeriodValue => integer().nullable()();
+  TextColumn get warrantyPeriodUnit => text().nullable()(); // 'days' | 'months'
+  IntColumn get warrantyStartDate => integer().nullable()(); // timestamp_ms
+  IntColumn get warrantyExpiryDate => integer().nullable()(); // timestamp_ms
+  TextColumn get warrantyNotes => text().nullable()();
+  IntColumn get unitPrice => integer().nullable()();
+  TextColumn get notes => text().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 class ServiceItems extends Table with _Synced {
   TextColumn get id => text()();
   TextColumn get assemblyId => text()();

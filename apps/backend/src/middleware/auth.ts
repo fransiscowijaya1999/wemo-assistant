@@ -33,3 +33,18 @@ export const requireClerkRead = createMiddleware<{ Bindings: Bindings }>(async (
   }
   await next();
 });
+
+/**
+ * Guards CRM write operations. Both clerk and admin can write to CRM tables.
+ * Clerk app presents CLERK_TOKEN, admin presents ADMIN_TOKEN.
+ */
+export const requireClerkWrite = createMiddleware<{ Bindings: Bindings }>(async (c, next) => {
+  const provided = c.req.header('Authorization');
+  const ok =
+    (c.env.CLERK_TOKEN && provided === `Bearer ${c.env.CLERK_TOKEN}`) ||
+    (c.env.ADMIN_TOKEN && provided === `Bearer ${c.env.ADMIN_TOKEN}`);
+  if (!ok) {
+    return c.json({ error: 'clerk or admin authorization required' }, 401);
+  }
+  await next();
+});

@@ -27,8 +27,8 @@ class SyncApiException implements Exception {
   String toString() => 'SyncApiException: $message';
 }
 
-/// Thin HTTP client for the read-only sync endpoint. Reads are guarded by the
-/// clerk API key (sent as a Bearer header); the replica never writes back.
+/// Thin HTTP client for sync endpoints. Reads are guarded by the clerk API key
+/// (sent as a Bearer header). CRM tables can be written back via POST /sync/push.
 class SyncApi {
   SyncApi({
     required this.baseUrl,
@@ -108,5 +108,35 @@ class SyncApi {
 
   void dispose() {
     if (_ownsClient) _client.close();
+  }
+
+  /// Push local CRM changes back to the server (POST /sync/push).
+  /// Used for bidirectional sync of CRM tables that clerk can write to.
+  Future<Map<String, dynamic>> push(Map<String, List<Map<String, dynamic>>> tables) async {
+    final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final uri = Uri.parse('$base/sync/push');
+
+    final http.Response res;
+    try {
+      res = await _client.post(
+        uri,
+        headers: {..._headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({'tables': tables}),
+      ).timeout(timeout);
+    } catch (e) {
+      throw SyncApiException('cannot reach $base ($e)');
+    }
+    if (res.statusCode == 401) {
+      throw SyncApiException('Not authorized — check the API key on the Sync screen.');
+    }
+    if (res.statusCode != 200) {
+      throw SyncApiException('HTTP ${res.statusCode} from $uri');
+    }
+
+    try {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (e) {
+      throw SyncApiException('bad JSON from $uri ($e)');
+    }
   }
 }
