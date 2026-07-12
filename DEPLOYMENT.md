@@ -251,7 +251,7 @@ bun run build                  # outputs the static site to apps/admin/dist
 ```bash
 cd apps/admin
 bunx wrangler pages project create wemo-admin       # one-time; pick a production branch name when asked
-bunx wrangler pages deploy dist --project-name wemo-admin
+bun run deploy
 ```
 
 Then set the backend URL the proxy points at. In the **Cloudflare dashboard → Workers & Pages →
@@ -346,8 +346,7 @@ bun run db:migrate:remote   # ONLY if the schema changed
 bun run deploy
 
 # Admin web (from apps/admin)
-bun run build
-bunx wrangler pages deploy dist --project-name wemo-admin
+bun run deploy
 
 # Mobile (from apps/mobile) — then re-sideload the APK
 flutter build apk --release
