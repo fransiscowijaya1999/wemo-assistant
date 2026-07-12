@@ -54,6 +54,9 @@ dependencies:
   # bubble. Maintained fork of the discontinued official `flutter_markdown`.
   flutter_markdown_plus: ^1.0.7
 
+  # Native splash screen — runtime API (preserve/remove) + dev-time generation.
+  flutter_native_splash: ^2.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -71,7 +74,6 @@ dev_dependencies:
   # Launcher icon + splash generation (dev-time only):
   #   dart run flutter_launcher_icons && dart run flutter_native_splash:create
   flutter_launcher_icons: ^0.14.1
-  flutter_native_splash: ^2.4.1
 
 # Brand: wemo amber (#FD7E14), white "W" (assets/icon, generated).
 flutter_launcher_icons:
@@ -87,6 +89,7 @@ flutter_native_splash:
   android_12:
     color: "#FD7E14"
     image: assets/icon/icon_fg.png
+    icon_background_color: "#FD7E14"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
