@@ -6,6 +6,7 @@ import {
   Divider,
   Group,
   Modal,
+  NumberInput,
   Paper,
   ScrollArea,
   Stack,
@@ -109,23 +110,21 @@ export function CustomersView() {
 
   // Filter customers by search
   const filteredCustomers = useMemo(() => {
-    const lowerSearch = search.toLowerCase();
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(lowerSearch) ||
-        (c.phone?.toLowerCase().includes(lowerSearch) ?? false) ||
-        (c.email?.toLowerCase().includes(lowerSearch) ?? false) ||
-        (c.tag?.toLowerCase().includes(lowerSearch) ?? false)
-    );
+    if (!search.trim()) return customers;
+    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+    return customers.filter((c) => {
+      const hay = `${c.name} ${c.phone ?? ''} ${c.email ?? ''} ${c.tag ?? ''}`.toLowerCase();
+      return terms.every((term) => hay.includes(term));
+    });
   }, [customers, search]);
 
   // Filter records by search (client-side)
   const filteredRecords = useMemo(() => {
-    if (!recordSearch) return allRecords;
-    const q = recordSearch.toLowerCase();
+    if (!recordSearch.trim()) return allRecords;
+    const terms = recordSearch.toLowerCase().split(/\s+/).filter(Boolean);
     return allRecords.filter((r) => {
       const hay = `${r.customerName} ${r.description} ${r.invoiceNumber ?? ''} ${r.type}`.toLowerCase();
-      return hay.includes(q);
+      return terms.every((term) => hay.includes(term));
     });
   }, [allRecords, recordSearch]);
 
@@ -398,7 +397,7 @@ export function CustomersView() {
       <Table.Td>{new Date(r.date).toLocaleDateString()}</Table.Td>
       <Table.Td>{r.description}</Table.Td>
       <Table.Td>{r.invoiceNumber ?? '-'}</Table.Td>
-      <Table.Td>{r.totalAmount ? `€${(r.totalAmount / 100).toFixed(2)}` : '-'}</Table.Td>
+      <Table.Td>{r.totalAmount ? r.totalAmount.toLocaleString() : '-'}</Table.Td>
       <Table.Td>
         <Group gap="xs">
           <ActionIcon size="sm" variant="subtle" onClick={() => openEditRecord(r)}>
@@ -537,7 +536,7 @@ export function CustomersView() {
                     <Table.Td>{new Date(r.date).toLocaleDateString()}</Table.Td>
                     <Table.Td>{r.description}</Table.Td>
                     <Table.Td>{r.invoiceNumber ?? '-'}</Table.Td>
-                    <Table.Td>{r.totalAmount ? `€${(r.totalAmount / 100).toFixed(2)}` : '-'}</Table.Td>
+                    <Table.Td>{r.totalAmount ? r.totalAmount.toLocaleString() : '-'}</Table.Td>
                     <Table.Td>{r.items?.length ?? 0}</Table.Td>
                     <Table.Td>
                       <Group gap="xs">
@@ -827,6 +826,7 @@ export function CustomersView() {
             value={recordData.customerId ?? ''}
             onChange={(e) => setRecordData({ ...recordData, customerId: e.currentTarget.value })}
             placeholder="Customer ID"
+            disabled
           />
           <TextInput
             label="Vehicle ID"
@@ -834,11 +834,15 @@ export function CustomersView() {
             onChange={(e) => setRecordData({ ...recordData, customerVehicleId: e.currentTarget.value })}
             placeholder="Vehicle ID"
           />
-          <TextInput
+          <Select
             label="Type *"
+            data={[
+              { value: 'service', label: 'Service' },
+              { value: 'purchase', label: 'Purchase' },
+            ]}
             value={recordData.type ?? ''}
-            onChange={(e) => setRecordData({ ...recordData, type: e.currentTarget.value as 'service' | 'purchase' })}
-            placeholder="service or purchase"
+            onChange={(v) => setRecordData({ ...recordData, type: (v as 'service' | 'purchase') ?? 'service' })}
+            placeholder="Select type"
           />
           <TextInput
             label="Description *"
@@ -859,12 +863,13 @@ export function CustomersView() {
             onChange={(e) => setRecordData({ ...recordData, invoiceNumber: e.currentTarget.value })}
             placeholder="Invoice number"
           />
-          <TextInput
-            label="Total Amount (cents)"
+          <NumberInput
+            label="Total Amount"
             value={recordData.totalAmount ?? ''}
-            onChange={(e) => setRecordData({ ...recordData, totalAmount: e.currentTarget.value ? Number(e.currentTarget.value) : undefined })}
-            placeholder="Amount in cents"
-            type="number"
+            onChange={(val) => setRecordData({ ...recordData, totalAmount: typeof val === 'number' ? val : undefined })}
+            placeholder="Amount"
+            thousandSeparator=","
+            hideControls
           />
           <TextInput
             label="Notes"

@@ -41,7 +41,8 @@ vehiclesRoute.get('/', requireClerkRead, async (c) => {
   const filtered = search
     ? rows.filter((r) => {
         const hay = `${r.customerName} ${r.machineBrand} ${r.machineModel} ${r.licensePlate ?? ''} ${r.frameNumber ?? ''} ${r.nickname ?? ''}`.toLowerCase();
-        return hay.includes(search);
+        const terms = search.split(/\s+/).filter(Boolean);
+        return terms.every(term => hay.includes(term));
       })
     : rows;
 
