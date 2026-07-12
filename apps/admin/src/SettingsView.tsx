@@ -11,10 +11,130 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconDeviceFloppy, IconPlugConnected, IconSparkles } from '@tabler/icons-react';
+import { IconDeviceFloppy, IconPlugConnected, IconSparkles, IconDownload, IconUpload } from '@tabler/icons-react';
 import { api, getToken, setToken } from './api';
 import { notifyError, notifySuccess } from './notify';
 import type { AiSettings } from './types';
+
+function BackupRestoreCard() {
+  const [restoring, setRestoring] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch('/api/admin/backup', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Get filename from content-disposition if possible, otherwise generate one
+      const cd = res.headers.get('Content-Disposition');
+      let filename = `wemo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (cd && cd.includes('filename=')) {
+        filename = cd.split('filename=')[1].replace(/["']/g, '');
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notifySuccess('Backup downloaded');
+    } catch (e) {
+      notifyError('Backup failed', String(e));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // reset input so the same file can be selected again
+    e.target.value = '';
+
+    if (!window.confirm(`Restore from ${file.name}? This will overwrite existing matching records.`)) {
+      return;
+    }
+
+    setRestoring(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const archive = JSON.parse(text);
+        
+        const res = await fetch('/api/admin/restore', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(archive),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || res.statusText);
+        
+        notifySuccess('Restore complete', `Images: ${data.imageCount}`);
+      } catch (err) {
+        notifyError('Restore failed', String(err));
+      } finally {
+        setRestoring(false);
+      }
+    };
+    reader.onerror = () => {
+      notifyError('Restore failed', 'Could not read file');
+      setRestoring(false);
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <Card withBorder maw={560}>
+      <Stack>
+        <Group gap="xs">
+          <IconDeviceFloppy size={18} />
+          <Title order={5}>Backup / Restore</Title>
+        </Group>
+        <Text size="sm" c="dimmed">
+          Snapshot the whole catalog (data + images) and replay it here. 
+          Restore is idempotent: it safely upserts existing records.
+        </Text>
+        <Group>
+          <Button 
+            leftSection={<IconDownload size={16} />} 
+            onClick={handleDownload} 
+            loading={downloading}
+          >
+            Download backup
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconUpload size={16} />}
+            loading={restoring}
+            onClick={() => document.getElementById('restore-upload')?.click()}
+          >
+            Restore backup
+          </Button>
+          <input 
+            type="file" 
+            id="restore-upload" 
+            accept=".json,application/json" 
+            style={{ display: 'none' }}
+            onChange={handleFileChange} 
+          />
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
 
 const PROVIDER_LABELS: Record<string, string> = {
   auto: 'Auto (by available key)',
@@ -190,6 +310,7 @@ export function SettingsView() {
       </Card>
 
       <AiProviderCard />
+      <BackupRestoreCard />
     </Stack>
   );
 }

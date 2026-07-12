@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { aliases, assemblyItems, partColorVariants, partNumbers, parts } from '../db/schema';
+import { aliases, assemblyItems, partColorVariants, partNumbers, parts, partSubstitutes } from '../db/schema';
 
 // Structured catalog-correction proposals. The admin assistant only RECORDS these
 // (via propose_* tools); nothing is written until the admin approves and the
@@ -49,12 +49,20 @@ export const mergeProposal = z.object({
   targetPartId: z.string().describe('The canonical part to KEEP.'),
 });
 
+export const substituteProposal = z.object({
+  type: z.literal('substitute'),
+  partId: z.string(),
+  substitutePartId: z.string(),
+  note: z.string().nullable().optional(),
+});
+
 export const correctionProposal = z.discriminatedUnion('type', [
   renameProposal,
   addAliasProposal,
   addNumberProposal,
   editNumberProposal,
   mergeProposal,
+  substituteProposal,
 ]);
 export type CorrectionProposal = z.infer<typeof correctionProposal>;
 
@@ -258,6 +266,27 @@ export async function applyCorrection(db: Db, p: CorrectionProposal): Promise<{ 
       return {
         summary: `Merged: moved ${movedNumbers} numbers, ${movedAliases} aliases, ${movedColors} colors, ${positionRows.length} positions`,
       };
+    }
+    case 'substitute': {
+      if (p.partId === p.substitutePartId) throw new ApplyError('cannot substitute a part for itself');
+      await livepart(db, p.partId);
+      await livepart(db, p.substitutePartId);
+
+      const [minId, maxId] = p.partId < p.substitutePartId ? [p.partId, p.substitutePartId] : [p.substitutePartId, p.partId];
+      const dup = await db
+        .select({ id: partSubstitutes.id })
+        .from(partSubstitutes)
+        .where(and(eq(partSubstitutes.partId, minId), eq(partSubstitutes.substitutePartId, maxId), isNull(partSubstitutes.deletedAt)))
+        .get();
+      if (dup) throw new ApplyError('substitute link already exists');
+
+      await db.insert(partSubstitutes).values({
+        partId: minId,
+        substitutePartId: maxId,
+        note: p.note ?? null,
+      });
+
+      return { summary: `Linked as substitutes` };
     }
   }
 }

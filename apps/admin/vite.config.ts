@@ -17,4 +17,16 @@ export default defineConfig({
     },
   },
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          mantine: ['@mantine/core', '@mantine/hooks'],
+          icons: ['@tabler/icons-react'],
+          pdf: ['pdfjs-dist'],
+        },
+      },
+    },
+  },
 });

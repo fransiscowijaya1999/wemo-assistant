@@ -20,8 +20,8 @@ function assemblySystem(mapDots: boolean): string {
   return SYSTEM_TEMPLATE.replace('%DOTS_RULE%', mapDots ? DOTS_RULE : NO_DOTS_RULE);
 }
 
-const SYSTEM_TEMPLATE = `You extract structured data from Honda Indonesia motorcycle spare-parts catalog
-("Katalog Suku Cadang") assembly pages. A page USUALLY has an assembly code + name, an exploded
+const SYSTEM_TEMPLATE = `You extract structured data from a vehicle spare-parts catalog
+(such as Honda, Yamaha, Suzuki, Daihatsu, Toyota, or Mitsubishi) assembly pages. A page USUALLY has an assembly code + name, an exploded
 diagram with numbered balloons, a parts table, and often a Service item / F.R.T. table. But a page
 can also be a CONTINUATION of the previous assembly: the same assembly code + name in the header and
 more parts-table rows, but NO exploded drawing (the diagram appeared on an earlier page).
@@ -61,7 +61,7 @@ Rules:
 - On pages WITHOUT these columns, omit variantColumns, variantQtys, serialFrom and serialTo entirely.
 - If a field is not present, omit it. Do not guess text you cannot read.`;
 
-const COLOR_SYSTEM = `You extract data from a Honda Indonesia parts-catalog COLOR INDEX page, which
+const COLOR_SYSTEM = `You extract data from a vehicle parts-catalog (such as Honda, Yamaha, Suzuki, etc.) COLOR INDEX page, which
 maps colored parts to color-specific part-number suffixes.
 
 Columns: No. | colored part name | base part number ("No. part dasar") | one column per body color

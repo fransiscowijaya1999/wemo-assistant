@@ -14,7 +14,7 @@ export const adminRoute = new Hono<{ Bindings: Bindings }>();
 // look up parts and DRAFT corrections, but performs NO writes: propose_* tools only
 // record structured proposals. A write happens solely when the admin approves one
 // and calls /admin/corrections/apply. See CLAUDE.md ("never auto-change; human verifies").
-const SYSTEM = `You are a catalog-correction assistant for the ADMIN (shop owner) of a Honda motorcycle
+const SYSTEM = `You are a catalog-correction assistant for the ADMIN (shop owner) of a multi-brand vehicle (Honda, Yamaha, Suzuki, Daihatsu, Toyota, Mitsubishi)
 spare-parts catalog in Indonesia. You help clean up and correct catalog data.
 
 You CANNOT change anything directly. You DRAFT proposals that the admin reviews and approves; only

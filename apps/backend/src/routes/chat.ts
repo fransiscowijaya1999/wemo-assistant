@@ -12,7 +12,7 @@ export const chatRoute = new Hono<{ Bindings: Bindings }>();
 // tools and performs NO writes (see the authorization invariant in CLAUDE.md).
 // Guarded by the clerk read token (entered in the mobile app's settings), same
 // as /sync — reads only, never the admin token.
-const SYSTEM = `You are a parts-identification assistant for a Honda motorcycle spare-parts shop with
+const SYSTEM = `You are a parts-identification assistant for a multi-brand vehicle (Honda, Yamaha, Suzuki, Daihatsu, Toyota, Mitsubishi) spare-parts shop with
 an attached workshop, in Indonesia. Customers are often non-technical and arrive WITHOUT a part
 number — the broken part may have no visible marking. Your job is to identify the exact correct part
 and give its OEM part number.

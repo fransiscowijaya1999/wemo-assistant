@@ -164,6 +164,20 @@ const PROPOSE_TOOL_DEFS: ChatToolDef[] = [
       required: ['sourcePartId', 'targetPartId'],
     },
   },
+  {
+    name: 'propose_substitute',
+    description:
+      'Propose creating a manual interchange link (substitute) between two DIFFERENT canonical parts that can replace each other. Use this when the admin asks to link two separate parts as substitutes for each other.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        partId: { type: 'string', description: 'The first canonical part ID.' },
+        substitutePartId: { type: 'string', description: 'The second canonical part ID.' },
+        note: { type: 'string', description: 'Optional note explaining the substitute relationship.' },
+      },
+      required: ['partId', 'substitutePartId'],
+    },
+  },
 ];
 
 export const ADMIN_TOOL_DEFS: ChatToolDef[] = [...READ_TOOL_DEFS, ...PROPOSE_TOOL_DEFS];
@@ -299,6 +313,32 @@ export function createAdminToolset(db: Db): {
             keep: targetLabel,
             moves: `${preview.numbers} numbers, ${preview.aliases} aliases, ${preview.colorVariants} colors, ${preview.positions} positions`,
           },
+        );
+      }
+      case 'propose_substitute': {
+        const partId = String(input.partId ?? '');
+        const substitutePartId = String(input.substitutePartId ?? '');
+        if (!partId || !substitutePartId) return { error: 'partId and substitutePartId are required' };
+        if (partId === substitutePartId) return { error: 'cannot substitute a part for itself' };
+        const [p1, p2] = await Promise.all([
+          db.select({ id: parts.id }).from(parts).where(and(eq(parts.id, partId), isNull(parts.deletedAt))).get(),
+          db.select({ id: parts.id }).from(parts).where(and(eq(parts.id, substitutePartId), isNull(parts.deletedAt))).get(),
+        ]);
+        if (!p1) return { error: 'partId not found' };
+        if (!p2) return { error: 'substitutePartId not found' };
+        
+        const [label1, label2] = await Promise.all([
+          partLabel(db, partId),
+          partLabel(db, substitutePartId),
+        ]);
+        
+        const note = str(input.note);
+        return record(
+          { type: 'substitute', partId, substitutePartId, note: note ?? null },
+          `${label1}  ↔  ${label2}`,
+          `Link as substitutes`,
+          undefined,
+          { note: note ?? '(no note)' }
         );
       }
       default:
