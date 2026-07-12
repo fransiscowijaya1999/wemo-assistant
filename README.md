@@ -54,3 +54,22 @@ ADMIN_TOKEN=<prod-token> bun run restore backups/wemo-<timestamp>.json https://p
 
 The dev server (`bun run dev`) must be running for the local commands. Scripts default to `127.0.0.1`
 (not `localhost`) because Node's fetch prefers IPv6 `::1`, which wrangler dev doesn't bind on Windows.
+
+## Releasing the Mobile App
+
+We use GitHub Actions to automatically build and release the Flutter app (split by ABI to optimize APK size). 
+
+When you're ready to make a release, follow this Git workflow to ensure your tag is pushed properly to trigger the automation:
+
+```bash
+# 1. Push your code commits first
+git push
+
+# 2. Tag your release (use an annotated tag for best results)
+git tag -a v1.0.0 -m "Release v1.0.0"
+
+# 3. Push all your tags explicitly to trigger the GitHub Action
+git push origin --tags
+```
+
+Once pushed, go to the **Actions** tab on GitHub to see the build running. When finished, a new release will be created automatically with the compiled `.apk` files attached.
