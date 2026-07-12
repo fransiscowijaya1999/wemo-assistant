@@ -53,6 +53,21 @@ export function CustomersView() {
   const [editData, setEditData] = useState<Partial<Customer>>({});
   const [vehicleData, setVehicleData] = useState<Partial<CustomerVehicle>>({});
   const [recordData, setRecordData] = useState<Partial<Omit<MaintenanceRecord, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>>>({});
+  const [recordVehicles, setRecordVehicles] = useState<CustomerVehicle[]>([]);
+
+  useEffect(() => {
+    if (recordModalOpened && recordData.customerId) {
+      if (selectedCustomer?.id === recordData.customerId && selectedCustomer.vehicles) {
+        setRecordVehicles(selectedCustomer.vehicles);
+      } else {
+        api.getCustomerVehicles(recordData.customerId)
+          .then(setRecordVehicles)
+          .catch((e) => console.error('Failed to load vehicles for record', e));
+      }
+    } else {
+      setRecordVehicles([]);
+    }
+  }, [recordModalOpened, recordData.customerId, selectedCustomer]);
 
   const refreshCustomers = useCallback(async () => {
     try {
@@ -189,7 +204,7 @@ export function CustomersView() {
       return;
     }
     try {
-      const customerId = selectedCustomer?.id;
+      const customerId = editData.id;
       if (customerId) {
         await api.updateCustomer(customerId, editData);
         notifySuccess('Customer updated');
@@ -279,7 +294,7 @@ export function CustomersView() {
 
   const openEditCustomer = useCallback((customer?: Customer) => {
     setEditType('customer');
-    setEditData(customer ? { name: customer.name, phone: customer.phone, phoneAlt: customer.phoneAlt, email: customer.email, address: customer.address, notes: customer.notes, tag: customer.tag } : { name: '', phone: '', phoneAlt: '', email: '', address: '', notes: '', tag: '' });
+    setEditData(customer ? { id: customer.id, name: customer.name, phone: customer.phone, phoneAlt: customer.phoneAlt, email: customer.email, address: customer.address, notes: customer.notes, tag: customer.tag } : { name: '', phone: '', phoneAlt: '', email: '', address: '', notes: '', tag: '' });
     setSelectedCustomer(null);
     openEdit();
   }, [openEdit]);
@@ -828,11 +843,13 @@ export function CustomersView() {
             placeholder="Customer ID"
             disabled
           />
-          <TextInput
-            label="Vehicle ID"
-            value={recordData.customerVehicleId ?? ''}
-            onChange={(e) => setRecordData({ ...recordData, customerVehicleId: e.currentTarget.value })}
-            placeholder="Vehicle ID"
+          <Select
+            label="Vehicle"
+            data={recordVehicles.map((v) => ({ value: v.id, label: v.nickname || v.machineId }))}
+            value={recordData.customerVehicleId || null}
+            onChange={(v) => setRecordData({ ...recordData, customerVehicleId: v ?? '' })}
+            placeholder="Select a vehicle (optional)"
+            clearable
           />
           <Select
             label="Type *"
