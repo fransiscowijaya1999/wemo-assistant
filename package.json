@@ -1,0 +1,15 @@
+{
+  "name": "wemo-assistant",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "deploy:backend": "bun run --cwd apps/backend deploy",
+    "deploy:admin": "bun run --cwd apps/admin deploy",
+    "deploy:all": "bun run deploy:backend && bun run deploy:admin",
+    "db:migrate:remote": "bun run --cwd apps/backend db:migrate:remote",
+    "dev:backend": "bun run --cwd apps/backend dev",
+    "dev:admin": "bun run --cwd apps/admin dev"
+  }
+}

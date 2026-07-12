@@ -338,17 +338,21 @@ update the value in the client that uses it. No redeploy needed for secret chang
 
 ## 6. Redeploying later (the short version)
 
-Once the one-time setup above is done, shipping changes is just:
+Once the one-time setup above is done, shipping changes is just running these from the **project root**:
 
 ```bash
-# Backend (from apps/backend)
-bun run db:migrate:remote   # ONLY if the schema changed
-bun run deploy
+# Backend & Admin web (all at once)
+bun run deploy:all
 
-# Admin web (from apps/admin)
-bun run deploy
+# OR individually
+bun run deploy:backend
+bun run deploy:admin
+
+# ONLY if the schema changed, run this first:
+bun run db:migrate:remote
 
 # Mobile (from apps/mobile) — then re-sideload the APK
+cd apps/mobile
 flutter build apk --release
 ```
 
