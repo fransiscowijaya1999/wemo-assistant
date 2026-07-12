@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/db/app_database.dart';
 
@@ -46,7 +47,7 @@ class RecordRepository {
     
     final customerQuery = db.select(db.customers)..where((t) => t.id.equals(record.customerId));
     final vehicleQuery = record.customerVehicleId != null 
-      ? db.select(db.customerVehicles)..where((t) => t.id.equals(record.customerVehicleId!)) 
+      ? (db.select(db.customerVehicles)..where((t) => t.id.equals(record.customerVehicleId!)))
       : null;
     final itemsQuery = db.select(db.maintenanceItems)
       ..where((t) => t.maintenanceRecordId.equals(recordId))
@@ -59,7 +60,7 @@ class RecordRepository {
     
     final vehicle = vehicleQuery != null ? await vehicleQuery.getSingleOrNull() : null;
     
-    return (record: record, customer: customer, vehicle: vehicle, items: items);
+    return (record: record, customer: customer as Customer?, vehicle: vehicle, items: items as List<MaintenanceItem>);
   }
 
   // Create record
@@ -75,11 +76,13 @@ class RecordRepository {
     int? totalAmount,
     String? notes,
   }) async {
+    final id = const Uuid().v4();
     final companion = MaintenanceRecordsCompanion.insert(
+      id: id,
       customerId: customerId,
       customerVehicleId: Value(customerVehicleId),
       type: type,
-      date: Value(date?.millisecondsSinceEpoch),
+      date: date?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch,
       description: description,
       technicianId: Value(technicianId),
       clerkId: Value(clerkId),
@@ -89,7 +92,7 @@ class RecordRepository {
       updatedAt: DateTime.now(),
     );
     
-    final id = await db.into(db.maintenanceRecords).insert(companion);
+    await db.into(db.maintenanceRecords).insert(companion);
     return id.toString();
   }
 
@@ -129,7 +132,7 @@ class RecordRepository {
   // Delete record (soft delete)
   Future<bool> deleteRecord(String id) async {
     final query = db.update(db.maintenanceRecords)..where((t) => t.id.equals(id));
-    return await query.write(const MaintenanceRecordsCompanion(deletedAt: Value(DateTime.now()))) > 0;
+    return await query.write(MaintenanceRecordsCompanion(deletedAt: Value(DateTime.now()))) > 0;
   }
 
   // Get recent records (limit)

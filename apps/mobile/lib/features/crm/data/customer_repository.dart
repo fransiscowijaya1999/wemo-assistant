@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/db/app_database.dart';
 
@@ -25,13 +26,13 @@ class CustomerRepository {
     
     final searchPattern = '%$query%';
     final q = db.select(db.customers)
-      .where((t) => 
+      ..where((t) => 
         t.name.like(searchPattern) |
         t.phone.like(searchPattern) |
         t.email.like(searchPattern)
       )
-      .orderBy([(t) => OrderingTerm(expression: t.name)])
-      .limit(20);
+      ..orderBy([(t) => OrderingTerm(expression: t.name)])
+      ..limit(20);
     
     return await q.get();
   }
@@ -46,7 +47,9 @@ class CustomerRepository {
     String? notes,
     String? tag,
   }) async {
+    final id = const Uuid().v4();
     final companion = CustomersCompanion.insert(
+      id: id,
       name: name,
       phone: Value(phone),
       phoneAlt: Value(phoneAlt),
@@ -57,7 +60,7 @@ class CustomerRepository {
       updatedAt: DateTime.now(),
     );
     
-    final id = await db.into(db.customers).insert(companion);
+    await db.into(db.customers).insert(companion);
     return id.toString();
   }
 
@@ -91,7 +94,7 @@ class CustomerRepository {
   // Delete customer (soft delete)
   Future<bool> deleteCustomer(String id) async {
     final query = db.update(db.customers)..where((t) => t.id.equals(id));
-    return await query.write(const CustomersCompanion(deletedAt: Value(DateTime.now()))) > 0;
+    return await query.write(CustomersCompanion(deletedAt: Value(DateTime.now()))) > 0;
   }
 
   // Get customer with their vehicles

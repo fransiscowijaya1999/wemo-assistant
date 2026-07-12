@@ -328,7 +328,7 @@ MaintenanceRecordsCompanion _maintenanceRecord(Map<String, dynamic> r) => Mainte
   customerVehicleId: Value(r['customerVehicleId'] as String?),
   customerId: r['customerId'] as String,
   type: r['type'] as String,
-  date: Value(r['date'] as int?),
+  date: r['date'] as int? ?? 0,
   description: r['description'] as String,
   technicianId: Value(r['technicianId'] as String?),
   clerkId: Value(r['clerkId'] as String?),

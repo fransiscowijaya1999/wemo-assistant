@@ -216,7 +216,11 @@ class _RecordItemEditScreenState extends State<RecordItemEditScreen> {
               const SizedBox(height: 16),
 
               // Warranty section
-              Divider(text: 'WARRANTY'.toUpperCase()),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Text('WARRANTY', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+              const Divider(),
               const SizedBox(height: 8),
               
               SwitchListTile(

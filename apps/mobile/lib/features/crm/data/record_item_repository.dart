@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/db/app_database.dart';
 
@@ -47,7 +48,9 @@ class RecordItemRepository {
         ? _calculateWarrantyExpiry(startMs, warrantyPeriodValue, warrantyPeriodUnit)
         : warrantyExpiryDateMs;
     
+    final id = const Uuid().v4();
     final companion = MaintenanceItemsCompanion.insert(
+      id: id,
       maintenanceRecordId: maintenanceRecordId,
       category: category,
       partId: Value(partId),
@@ -67,7 +70,7 @@ class RecordItemRepository {
       updatedAt: DateTime.now(),
     );
     
-    final id = await db.into(db.maintenanceItems).insert(companion);
+    await db.into(db.maintenanceItems).insert(companion);
     return id.toString();
   }
 
@@ -128,7 +131,7 @@ class RecordItemRepository {
   // Delete item (soft delete)
   Future<bool> deleteItem(String id) async {
     final query = db.update(db.maintenanceItems)..where((t) => t.id.equals(id));
-    return await query.write(const MaintenanceItemsCompanion(deletedAt: Value(DateTime.now()))) > 0;
+    return await query.write(MaintenanceItemsCompanion(deletedAt: Value(DateTime.now()))) > 0;
   }
 
   // Reorder items

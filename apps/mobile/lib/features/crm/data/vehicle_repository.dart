@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/db/app_database.dart';
 
@@ -33,7 +34,7 @@ class VehicleRepository {
       machineQuery.getSingleOrNull(),
     ]);
     
-    return (vehicle: vehicle, customer: customer, machine: machine);
+    return (vehicle: vehicle, customer: customer as Customer?, machine: machine as Machine?);
   }
 
   // Create vehicle
@@ -47,7 +48,9 @@ class VehicleRepository {
     String? nickname,
     String? notes,
   }) async {
+    final id = const Uuid().v4();
     final companion = CustomerVehiclesCompanion.insert(
+      id: id,
       customerId: customerId,
       machineId: machineId,
       licensePlate: Value(licensePlate),
@@ -59,7 +62,7 @@ class VehicleRepository {
       updatedAt: DateTime.now(),
     );
     
-    final id = await db.into(db.customerVehicles).insert(companion);
+    await db.into(db.customerVehicles).insert(companion);
     return id.toString();
   }
 
@@ -95,7 +98,7 @@ class VehicleRepository {
   // Delete vehicle (soft delete)
   Future<bool> deleteVehicle(String id) async {
     final query = db.update(db.customerVehicles)..where((t) => t.id.equals(id));
-    return await query.write(const CustomerVehiclesCompanion(deletedAt: Value(DateTime.now()))) > 0;
+    return await query.write(CustomerVehiclesCompanion(deletedAt: Value(DateTime.now()))) > 0;
   }
 
   // Get vehicles with their maintenance records

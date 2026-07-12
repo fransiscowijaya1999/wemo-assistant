@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/db/app_database.dart';
+import '../../../core/db/app_database.dart' hide Color, Colors;
 import '../data/record_repository.dart';
 import 'record_item_edit_screen.dart';
 

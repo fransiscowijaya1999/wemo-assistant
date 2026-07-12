@@ -6,6 +6,7 @@ import '../data/customer_repository.dart';
 import '../data/vehicle_repository.dart';
 import '../data/record_repository.dart';
 import 'vehicle_edit_screen.dart';
+import 'customer_edit_screen.dart';
 import 'record_edit_screen.dart';
 import 'vehicle_detail_screen.dart';
 import 'record_detail_screen.dart';
@@ -88,7 +89,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                                   padding: const EdgeInsets.only(top: 8),
                                   child: Text('Notes: ${customer.notes}'),
                                 ),
-                            ].where((w) => w is! Text || (w as Text).data?.isNotEmpty ?? false).toList(),
+                            ].where((w) => w is! Text || ((w as Text).data?.isNotEmpty ?? false)).toList(),
                           ),
                         ),
                       ),
