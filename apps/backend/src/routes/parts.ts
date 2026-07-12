@@ -178,6 +178,48 @@ async function getPlacements(db: Db, numbers: { id: string; value: string }[]) {
   return [...byItem.values()];
 }
 
+// POST /parts — Manually create a new canonical part with its primary number.
+partsRoute.post('/', requireAdmin, async (c) => {
+  const body = await c.req.json<{ nameRaw?: string; nameNormalized?: string | null; category?: string | null; partNumber?: string; brand?: string | null }>().catch(() => null);
+  if (!body?.nameRaw?.trim()) return c.json({ error: 'nameRaw is required' }, 400);
+  if (!body?.partNumber?.trim()) return c.json({ error: 'partNumber is required' }, 400);
+
+  const db = getDb(c.env);
+  
+  // Check if the part number already exists to avoid dupes on primary number
+  const existingNum = await db
+    .select({ id: partNumbers.id })
+    .from(partNumbers)
+    .where(eq(partNumbers.value, body.partNumber.trim()))
+    .get();
+  if (existingNum) return c.json({ error: 'Part number already exists' }, 409);
+
+  const now = new Date();
+  
+  // Insert the part
+  const [part] = await db.insert(parts).values({
+    nameRaw: body.nameRaw.trim(),
+    nameNormalized: body.nameNormalized?.trim() || null,
+    category: body.category?.trim() || null,
+    updatedAt: now,
+    createdAt: now,
+  }).returning();
+
+  // Insert the primary part number
+  await db.insert(partNumbers).values({
+    partId: part.id,
+    value: body.partNumber.trim(),
+    kind: 'oem',
+    brand: body.brand?.trim() || null,
+    isPrimary: true,
+    updatedAt: now,
+    createdAt: now,
+  });
+
+  return c.json({ ok: true, partId: part.id }, 201);
+});
+
+
 // Resolve ANY part number (oem/alternate/superseded/aftermarket) to its canonical part.
 // GET /parts?number=31928-MFF-D01
 partsRoute.get('/', async (c) => {

@@ -117,6 +117,11 @@ export function BrowseView({
   const [part, setPart] = useState<PartFull | null>(null);
   const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'notfound' | 'error'>('idle');
   const [lookupErr, setLookupErr] = useState('');
+  const [createPartOpen, { open: openCreatePart, close: closeCreatePart }] = useDisclosure(false);
+  const [newPartName, setNewPartName] = useState('');
+  const [newPartNumber, setNewPartNumber] = useState('');
+  const [createPartSaving, setCreatePartSaving] = useState(false);
+  const [createPartErr, setCreatePartErr] = useState('');
 
   useEffect(() => {
     setAsmId(null);
@@ -237,6 +242,28 @@ export function BrowseView({
     } catch (e) {
       setLookupErr(String(e));
       setLookupState('error');
+    }
+  }
+
+  async function handleCreatePart() {
+    if (!newPartName.trim() || !newPartNumber.trim()) return;
+    setCreatePartSaving(true);
+    setCreatePartErr('');
+    try {
+      const res = await api.createPart({
+        nameRaw: newPartName.trim(),
+        partNumber: newPartNumber.trim(),
+      });
+      notifySuccess(`Created part ${newPartNumber.trim()}`);
+      closeCreatePart();
+      setNewPartName('');
+      setNewPartNumber('');
+      setLookupNo(newPartNumber.trim());
+      void openPart(res.partId);
+    } catch (e) {
+      setCreatePartErr(String(e));
+    } finally {
+      setCreatePartSaving(false);
     }
   }
 
@@ -508,7 +535,51 @@ export function BrowseView({
             >
               Search
             </Button>
+            <Button
+              variant="default"
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreatePart}
+            >
+              New Part
+            </Button>
           </Group>
+
+          <Modal opened={createPartOpen} onClose={closeCreatePart} title="Create New Part" centered>
+            <Stack gap="sm">
+              <TextInput
+                label="Part Number"
+                placeholder="e.g. 12200-KVY-900"
+                value={newPartNumber}
+                onChange={(e) => setNewPartNumber(e.currentTarget.value)}
+                required
+              />
+              <TextInput
+                label="Part Name (Raw)"
+                placeholder="e.g. HEAD, CYLINDER"
+                value={newPartName}
+                onChange={(e) => setNewPartName(e.currentTarget.value)}
+                required
+              />
+              {createPartErr && (
+                <Text size="sm" c="red">
+                  {createPartErr}
+                </Text>
+              )}
+              <Group justify="flex-end">
+                <Button variant="default" onClick={closeCreatePart} disabled={createPartSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  leftSection={<IconDeviceFloppy size={16} />}
+                  onClick={handleCreatePart}
+                  loading={createPartSaving}
+                  disabled={!newPartName.trim() || !newPartNumber.trim()}
+                >
+                  Save Part
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
 
           {lookupState === 'notfound' && (
             <Text size="sm" c="dimmed">

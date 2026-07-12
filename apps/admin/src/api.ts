@@ -105,6 +105,8 @@ export const api = {
       body: { dots },
     }),
   lookupPart: (number: string) => req<PartFull>(`/parts?number=${encodeURIComponent(number)}`),
+  createPart: (part: { nameRaw: string; nameNormalized?: string; category?: string; partNumber: string; brand?: string }) =>
+    req<{ ok: boolean; partId: string }>('/parts', { method: 'POST', admin: true, body: part }),
   searchParts: (q: string) => req<{ results: SearchResult[] }>(`/parts/search?q=${encodeURIComponent(q)}`),
   getPart: (id: string) => req<PartFull>(`/parts/${encodeURIComponent(id)}`),
   addSubstitute: (partId: string, substitutePartId: string, note?: string) =>
