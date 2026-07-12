@@ -26,15 +26,19 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          cd apps/mobile
+          flutter pub get
 
       # Build separate, smaller APKs for each architecture
       - name: Build APKs (Split per ABI)
-        run: flutter build apk --release --split-per-abi
+        run: |
+          cd apps/mobile
+          flutter build apk --release --split-per-abi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/*.apk
+          files: apps/mobile/build/app/outputs/flutter-apk/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
