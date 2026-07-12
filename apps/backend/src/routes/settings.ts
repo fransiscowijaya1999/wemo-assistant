@@ -51,15 +51,7 @@ settingsRoute.put('/ai', requireAdmin, async (c) => {
   if (provider !== undefined && provider !== '' && !['auto', 'anthropic', 'deepseek', 'stub'].includes(provider)) {
     return c.json({ error: "chatProvider must be 'auto', 'anthropic', 'deepseek' or 'stub'" }, 400);
   }
-  // Extraction always runs on Anthropic — DeepSeek's public API has no image input,
-  // so a non-Anthropic model here would only break the next extraction.
   const visionModel = body.visionModel?.trim();
-  if (visionModel && !visionModel.toLowerCase().startsWith('claude')) {
-    return c.json(
-      { error: `extraction runs on Anthropic only — the model must be a 'claude-*' id (default ${DEFAULT_VISION_MODEL}). DeepSeek's API has no image input.` },
-      400,
-    );
-  }
 
   const db = getDb(c.env);
   const updates: [string, string | undefined][] = [

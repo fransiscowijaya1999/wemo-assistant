@@ -163,6 +163,9 @@ async function streamExtractionOnce<T>(
     msg = await stream.finalMessage();
   } catch (err) {
     if (stalled) throw new ExtractionStallError(Math.round(STALL_MS / 1000));
+    if (err instanceof Anthropic.BadRequestError && (err.message.toLowerCase().includes('image') || err.message.toLowerCase().includes('vision'))) {
+      throw new Error(`The selected model is actually not vision capable. Please configure a model that supports image input (e.g. claude-3-5-sonnet-20241022).`);
+    }
     throw err;
   } finally {
     clearTimeout(watchdog);
