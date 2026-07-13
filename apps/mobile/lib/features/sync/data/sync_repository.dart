@@ -136,6 +136,14 @@ double _d(dynamic v) => (v as num).toDouble();
 double? _dN(dynamic v) => v == null ? null : (v as num).toDouble();
 String? _json(dynamic v) => v == null ? null : jsonEncode(v);
 
+int? _msN(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is String) return DateTime.tryParse(v)?.millisecondsSinceEpoch;
+  return null;
+}
+int _ms(dynamic v) => _msN(v) ?? 0;
+
 MachinesCompanion _machine(Map<String, dynamic> r) => MachinesCompanion.insert(
   id: r['id'] as String,
   brand: r['brand'] as String,
@@ -328,7 +336,7 @@ MaintenanceRecordsCompanion _maintenanceRecord(Map<String, dynamic> r) => Mainte
   customerVehicleId: Value(r['customerVehicleId'] as String?),
   customerId: r['customerId'] as String,
   type: r['type'] as String,
-  date: r['date'] as int? ?? 0,
+  date: _ms(r['date']),
   description: r['description'] as String,
   technicianId: Value(r['technicianId'] as String?),
   clerkId: Value(r['clerkId'] as String?),
@@ -351,8 +359,8 @@ MaintenanceItemsCompanion _maintenanceItem(Map<String, dynamic> r) => Maintenanc
   hasWarranty: Value(r['hasWarranty'] as bool? ?? false),
   warrantyPeriodValue: Value(r['warrantyPeriodValue'] as int?),
   warrantyPeriodUnit: Value(r['warrantyPeriodUnit'] as String?),
-  warrantyStartDate: Value(r['warrantyStartDate'] as int?),
-  warrantyExpiryDate: Value(r['warrantyExpiryDate'] as int?),
+  warrantyStartDate: Value(_msN(r['warrantyStartDate'])),
+  warrantyExpiryDate: Value(_msN(r['warrantyExpiryDate'])),
   warrantyNotes: Value(r['warrantyNotes'] as String?),
   unitPrice: Value(r['unitPrice'] as int?),
   notes: Value(r['notes'] as String?),
