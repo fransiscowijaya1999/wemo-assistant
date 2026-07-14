@@ -115,7 +115,8 @@ export function CustomersView() {
 
   useEffect(() => {
     void refreshCustomers();
-  }, [refreshCustomers]);
+    void refreshMachines();
+  }, [refreshCustomers, refreshMachines]);
 
   // Refresh vehicles/records when tab changes
   useEffect(() => {
@@ -409,7 +410,7 @@ export function CustomersView() {
           {r.type}
         </Badge>
       </Table.Td>
-      <Table.Td>{new Date(r.date).toLocaleDateString()}</Table.Td>
+      <Table.Td>{new Date(r.date).toISOString().split('T')[0]}</Table.Td>
       <Table.Td>{r.description}</Table.Td>
       <Table.Td>{r.invoiceNumber ?? '-'}</Table.Td>
       <Table.Td>{r.totalAmount ? r.totalAmount.toLocaleString() : '-'}</Table.Td>
@@ -497,7 +498,12 @@ export function CustomersView() {
                     <Table.Td>
                       <Group gap="sm">
                         <IconBike size={16} />
-                        <Text>{v.nickname ?? v.machineId}</Text>
+                        <Text>
+                          {(() => {
+                            const m = machines.find((m) => m.id === v.machineId);
+                            return m ? `${m.brand} ${m.model}` : v.machineId;
+                          })()}
+                        </Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>{v.licensePlate ?? '-'}</Table.Td>
@@ -548,7 +554,7 @@ export function CustomersView() {
                         {r.type}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{new Date(r.date).toLocaleDateString()}</Table.Td>
+                    <Table.Td>{new Date(r.date).toISOString().split('T')[0]}</Table.Td>
                     <Table.Td>{r.description}</Table.Td>
                     <Table.Td>{r.invoiceNumber ?? '-'}</Table.Td>
                     <Table.Td>{r.totalAmount ? r.totalAmount.toLocaleString() : '-'}</Table.Td>
@@ -845,11 +851,29 @@ export function CustomersView() {
           />
           <Select
             label="Vehicle"
-            data={recordVehicles.map((v) => ({ value: v.id, label: v.nickname || v.machineId }))}
+            data={recordVehicles.map((v) => {
+              const m = machines.find((x) => x.id === v.machineId);
+              const mName = m ? `${m.brand} ${m.model}` : v.machineId;
+              let label = mName;
+              if (v.nickname && v.licensePlate) {
+                label = `${v.nickname} : ${mName} - ${v.licensePlate}`;
+              } else if (v.nickname) {
+                label = `${v.nickname} : ${mName}`;
+              } else if (v.licensePlate) {
+                label = `${mName} - ${v.licensePlate}`;
+              }
+              return { value: v.id, label };
+            })}
             value={recordData.customerVehicleId || null}
             onChange={(v) => setRecordData({ ...recordData, customerVehicleId: v ?? '' })}
             placeholder="Select a vehicle (optional)"
             clearable
+            renderOption={({ option }) => (
+              <Stack gap={0}>
+                <Text size="sm">{option.label}</Text>
+                <Text size="xs" c="dimmed">{option.value}</Text>
+              </Stack>
+            )}
           />
           <Select
             label="Type *"
