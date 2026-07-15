@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/db/app_database.dart' hide Color, Colors;
 import '../data/record_repository.dart';
+import 'record_edit_screen.dart';
 import 'record_item_edit_screen.dart';
 
 /// Screen that shows maintenance record details and its items.
@@ -21,48 +22,75 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     final db = Provider.of<AppDatabase>(context);
     final recordRepo = RecordRepository(db);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Record Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // TODO: Navigate to edit screen when customer info is available
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Edit functionality coming soon')),
-              );
-            },
+    return FutureBuilder<({
+      MaintenanceRecord record,
+      Customer? customer,
+      CustomerVehicle? vehicle,
+      List<MaintenanceItem> items
+    })?>(
+      future: recordRepo.getRecordFull(widget.recordId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Error')),
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+
+        final data = snapshot.data;
+        if (data == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Not Found')),
+            body: const Center(child: Text('Record not found')),
+          );
+        }
+
+        final record = data.record;
+        final customer = data.customer;
+        final vehicle = data.vehicle;
+        final items = data.items;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Record Details'),
+            actions: [
+              if (customer != null)
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => RecordEditScreen(
+                          recordId: widget.recordId,
+                          customerId: customer.id,
+                          vehicleId: vehicle?.id,
+                        ),
+                      ),
+                    ).then((_) {
+                      // Refresh the screen when returning
+                      setState(() {});
+                    });
+                  },
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cannot edit record without customer info')),
+                    );
+                  },
+                ),
+            ],
           ),
-        ],
-      ),
-      body: FutureBuilder<({
-        MaintenanceRecord record,
-        Customer? customer,
-        CustomerVehicle? vehicle,
-        List<MaintenanceItem> items
-      })?>(
-        future: recordRepo.getRecordFull(widget.recordId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final data = snapshot.data;
-          if (data == null) {
-            return const Center(child: Text('Record not found'));
-          }
-
-          final record = data.record;
-          final customer = data.customer;
-          final vehicle = data.vehicle;
-          final items = data.items;
-
-          return CustomScrollView(
+          body: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
@@ -144,7 +172,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                               MaterialPageRoute(
                                 builder: (context) => RecordItemEditScreen(recordId: widget.recordId),
                               ),
-                            ),
+                            ).then((_) {
+                              setState(() {});
+                            }),
                           ),
                         ],
                       ),
@@ -174,9 +204,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 

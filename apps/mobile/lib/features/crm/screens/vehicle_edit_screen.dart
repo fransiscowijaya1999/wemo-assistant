@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/db/app_database.dart';
 import '../data/vehicle_repository.dart';
 import 'customer_search_screen.dart';
+import 'machine_search_screen.dart';
 
 /// Screen for creating or editing a vehicle.
 class VehicleEditScreen extends StatefulWidget {
@@ -132,11 +133,15 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   }
 
   Future<void> _selectMachine() async {
-    // TODO: Implement machine selection screen
-    // For now, this would navigate to a machine browser
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Machine selection not implemented yet')),
-    );
+    final result = await Navigator.push<String?>(context, MaterialPageRoute(
+      builder: (context) => const MachineSearchScreen(),
+    ));
+    
+    if (result != null && mounted) {
+      setState(() {
+        _selectedMachineId = result;
+      });
+    }
   }
 
   @override
