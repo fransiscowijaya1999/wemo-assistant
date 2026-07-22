@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   Paper,
   Stack,
   Text,
@@ -12,6 +13,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import {
   IconArrowsExchange,
   IconPlus,
@@ -29,11 +31,13 @@ function PartPicker({
   label,
   placeholder,
   onPick,
+  onCreateNew,
   excludeId,
 }: {
   label: string;
   placeholder: string;
   onPick: (partId: string) => void;
+  onCreateNew?: () => void;
   excludeId?: string;
 }) {
   const [q, setQ] = useState('');
@@ -78,9 +82,16 @@ function PartPicker({
         </Button>
       </Group>
       {state === 'notfound' && (
-        <Text size="sm" c="dimmed">
-          No matches. Try fewer characters of the number (dashes optional), or a name/alias.
-        </Text>
+        <Group gap="xs">
+          <Text size="sm" c="dimmed">
+            No matches found. Try fewer characters, or create a new part record.
+          </Text>
+          {onCreateNew && (
+            <Button size="compact-xs" variant="light" color="wemo" leftSection={<IconPlus size={12} />} onClick={onCreateNew}>
+              Create new part
+            </Button>
+          )}
+        </Group>
       )}
       {results.length > 0 && (
         <Group gap={6}>
@@ -110,6 +121,44 @@ export function SubstitutesView() {
   const [part, setPart] = useState<PartFull | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+
+  // New Part form state
+  const [newNumber, setNewNumber] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newBrand, setNewBrand] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  async function handleCreatePart() {
+    if (!newNumber.trim() || !newName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await api.createPart({
+        partNumber: newNumber.trim(),
+        nameRaw: newName.trim(),
+        brand: newBrand.trim() || undefined,
+        category: newCategory.trim() || undefined,
+      });
+      notifySuccess('Part created', `${newNumber} (${newName}) has been added.`);
+      closeCreate();
+      setNewNumber('');
+      setNewName('');
+      setNewBrand('');
+      setNewCategory('');
+
+      // Auto-load or link the created part
+      if (!part) {
+        await load(res.partId);
+      } else {
+        await addLink(res.partId);
+      }
+    } catch (e) {
+      notifyError('Could not create part', String(e));
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function load(id: string) {
     try {
@@ -170,23 +219,80 @@ export function SubstitutesView() {
 
   return (
     <Stack>
+      <Modal opened={createOpened} onClose={closeCreate} title="Create New Canonical Part" centered>
+        <Stack gap="sm">
+          <TextInput
+            label="Part Number"
+            placeholder="e.g. 6201 2RS or NSK 6201 DDU"
+            required
+            value={newNumber}
+            onChange={(e) => setNewNumber(e.currentTarget.value)}
+          />
+          <TextInput
+            label="Part Name"
+            placeholder="e.g. Bearing 6201 2RS (Laher 6201)"
+            required
+            value={newName}
+            onChange={(e) => setNewName(e.currentTarget.value)}
+          />
+          <Group grow>
+            <TextInput
+              label="Brand (optional)"
+              placeholder="e.g. NSK, NTN, Generic"
+              value={newBrand}
+              onChange={(e) => setNewBrand(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Category (optional)"
+              placeholder="e.g. Bearing"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.currentTarget.value)}
+            />
+          </Group>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={closeCreate}>
+              Cancel
+            </Button>
+            <Button
+              color="wemo"
+              onClick={handleCreatePart}
+              loading={creating}
+              disabled={!newNumber.trim() || !newName.trim()}
+            >
+              Create Part
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Card withBorder>
         <Stack gap="sm">
-          <Group gap="xs">
-            <ThemeIcon variant="light" size="sm">
-              <IconArrowsExchange size={14} />
-            </ThemeIcon>
-            <Title order={5}>Substitute parts</Title>
+          <Group justify="space-between" align="center">
+            <Group gap="xs">
+              <ThemeIcon variant="light" size="sm">
+                <IconArrowsExchange size={14} />
+              </ThemeIcon>
+              <Title order={5}>Substitute parts</Title>
+            </Group>
+            <Button
+              size="xs"
+              variant="light"
+              color="wemo"
+              leftSection={<IconPlus size={14} />}
+              onClick={openCreate}
+            >
+              Create New Part
+            </Button>
           </Group>
           <Text size="sm" c="dimmed">
-            Link two different parts that can replace each other (e.g. 12000-KWB ↔ 12000-KYZ). The
-            link is mutual — each part shows the other as a substitute. This does not merge them:
-            both keep their own numbers, diagrams and aliases.
+            Link two different parts that can replace each other (e.g. OEM 91001-KCW-870 ↔ generic 6201 2RS). The
+            link is mutual — each part shows the other as a substitute, and you can mark a preferred standard part as the <strong>Current Replacement</strong>.
           </Text>
           <PartPicker
             label="Pick a part to manage"
-            placeholder="e.g. 12000-KWB, or “cylinder”"
+            placeholder="e.g. 91001-KCW-870, 6201 2RS, or “bearing”"
             onPick={load}
+            onCreateNew={openCreate}
           />
         </Stack>
       </Card>
@@ -303,6 +409,7 @@ export function SubstitutesView() {
                   label="Find the other part"
                   placeholder="Search by number, name or alias"
                   onPick={addLink}
+                  onCreateNew={openCreate}
                   excludeId={part.id}
                 />
               </Stack>
