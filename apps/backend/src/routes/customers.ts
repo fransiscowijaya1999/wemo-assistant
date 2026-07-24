@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Bindings } from '../bindings';
 import { getDb } from '../db/client';
 import { customers, customerVehicles, maintenanceRecords } from '../db/schema';
@@ -11,8 +11,22 @@ export const customersRoute = new Hono<{ Bindings: Bindings }>();
 
 customersRoute.get('/', requireClerkRead, async (c) => {
   const db = getDb(c.env);
-  const rows = await db.select().from(customers).where(isNull(customers.deletedAt));
-  return c.json(rows);
+  const rows = await db
+    .select({
+      customer: customers,
+      vehiclesCount: sql<number>`(SELECT COUNT(*) FROM ${customerVehicles} WHERE ${customerVehicles.customerId} = ${customers.id} AND ${customerVehicles.deletedAt} IS NULL)`,
+      recordsCount: sql<number>`(SELECT COUNT(*) FROM ${maintenanceRecords} WHERE ${maintenanceRecords.customerId} = ${customers.id} AND ${maintenanceRecords.deletedAt} IS NULL)`,
+    })
+    .from(customers)
+    .where(isNull(customers.deletedAt));
+  
+  return c.json(
+    rows.map((r) => ({
+      ...r.customer,
+      vehiclesCount: r.vehiclesCount,
+      recordsCount: r.recordsCount,
+    }))
+  );
 });
 
 customersRoute.get('/:id', requireClerkRead, async (c) => {
@@ -26,11 +40,20 @@ customersRoute.get('/:id', requireClerkRead, async (c) => {
 customersRoute.get('/:id/vehicles', requireClerkRead, async (c) => {
   const db = getDb(c.env);
   const id = c.req.param('id');
-  const vehicles = await db
-    .select()
+  const rows = await db
+    .select({
+      vehicle: customerVehicles,
+      recordsCount: sql<number>`(SELECT COUNT(*) FROM ${maintenanceRecords} WHERE ${maintenanceRecords.customerVehicleId} = ${customerVehicles.id} AND ${maintenanceRecords.deletedAt} IS NULL)`,
+    })
     .from(customerVehicles)
     .where(and(eq(customerVehicles.customerId, id), isNull(customerVehicles.deletedAt)));
-  return c.json(vehicles);
+    
+  return c.json(
+    rows.map((r) => ({
+      ...r.vehicle,
+      recordsCount: r.recordsCount,
+    }))
+  );
 });
 
 customersRoute.get('/:id/records', requireClerkRead, async (c) => {

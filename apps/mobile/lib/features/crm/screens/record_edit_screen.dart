@@ -170,6 +170,39 @@ class _RecordEditScreenState extends State<RecordEditScreen> {
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Record' : 'New Record'),
         actions: [
+          if (isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Record'),
+                    content: const Text('Are you sure you want to delete this record? This action cannot be undone.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && mounted) {
+                  final db = Provider.of<AppDatabase>(context, listen: false);
+                  final repository = RecordRepository(db);
+                  await repository.deleteRecord(widget.recordId!);
+                  if (mounted) {
+                    Navigator.pop(context, 'deleted');
+                  }
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _save,

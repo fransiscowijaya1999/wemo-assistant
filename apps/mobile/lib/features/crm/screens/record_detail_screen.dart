@@ -73,9 +73,13 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                           vehicleId: vehicle?.id,
                         ),
                       ),
-                    ).then((_) {
-                      // Refresh the screen when returning
-                      setState(() {});
+                    ).then((value) {
+                      if (value == 'deleted') {
+                        Navigator.pop(context);
+                      } else {
+                        // Refresh the screen when returning
+                        setState(() {});
+                      }
                     });
                   },
                 )
@@ -213,9 +217,24 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   Widget _buildItemCard(BuildContext context, MaintenanceItem item) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RecordItemEditScreen(
+              itemId: item.id,
+              recordId: item.maintenanceRecordId,
+            ),
+          ),
+        ).then((_) {
+          // Refresh after editing/deleting an item
+          // To access setState, we could pass it or rely on the parent FutureBuilder rebuilding,
+          // but _buildItemCard is a method of _RecordDetailScreenState so we can just call setState.
+          setState(() {});
+        }),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(

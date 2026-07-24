@@ -151,8 +151,41 @@ class _RecordItemEditScreenState extends State<RecordItemEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Item' : 'New Item'),
+        title: Text(isEditing ? 'Edit Item' : 'Add Item'),
         actions: [
+          if (isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Item'),
+                    content: const Text('Are you sure you want to delete this item?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && mounted) {
+                  final db = Provider.of<AppDatabase>(context, listen: false);
+                  final repository = RecordItemRepository(db);
+                  await repository.deleteItem(widget.itemId!);
+                  if (mounted) {
+                    Navigator.pop(context, 'deleted');
+                  }
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _save,

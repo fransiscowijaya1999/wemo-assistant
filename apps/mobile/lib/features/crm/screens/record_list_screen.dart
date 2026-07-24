@@ -147,7 +147,7 @@ class _RecordListScreenState extends State<RecordListScreen> {
                           MaterialPageRoute(
                             builder: (context) => RecordDetailScreen(recordId: record.id),
                           ),
-                        ),
+                        ).then((_) => _loadRecords()),
                       ),
                     );
                   },

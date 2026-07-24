@@ -163,7 +163,8 @@ export type CorrectionProposal =
   | { type: 'add_alias'; partId: string; term: string; lang?: string | null }
   | { type: 'add_number'; partId: string; value: string; kind?: NumberKind; brand?: string | null }
   | { type: 'edit_number'; partId: string; value: string; newValue?: string; kind?: NumberKind; brand?: string | null }
-  | { type: 'merge'; sourcePartId: string; targetPartId: string };
+  | { type: 'merge'; sourcePartId: string; targetPartId: string }
+  | { type: 'substitute'; partId: string; substitutePartId: string; note?: string | null };
 
 export type Proposal = {
   id: string;
@@ -195,6 +196,8 @@ export type Customer = {
   address?: string | null;
   notes?: string | null;
   tag?: string | null;
+  vehiclesCount?: number;
+  recordsCount?: number;
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null;
@@ -210,6 +213,7 @@ export type CustomerVehicle = {
   year?: number | null;
   nickname?: string | null;
   notes?: string | null;
+  recordsCount?: number;
   createdAt: number;
   updatedAt: number;
   deletedAt?: number | null;

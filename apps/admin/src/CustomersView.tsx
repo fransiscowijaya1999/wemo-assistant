@@ -356,8 +356,8 @@ export function CustomersView() {
       <Table.Td>{c.phone ?? '-'}</Table.Td>
       <Table.Td>{c.email ?? '-'}</Table.Td>
       <Table.Td>{c.tag ? <Badge variant="light">{c.tag}</Badge> : '-'}</Table.Td>
-      <Table.Td>-</Table.Td>
-      <Table.Td>-</Table.Td>
+      <Table.Td>{c.vehiclesCount ?? 0}</Table.Td>
+      <Table.Td>{c.recordsCount ?? 0}</Table.Td>
       <Table.Td>
         <Group gap="xs">
           <ActionIcon size="sm" variant="subtle" onClick={(e) => { e.stopPropagation(); openEditCustomer(c); }}>
@@ -510,7 +510,7 @@ export function CustomersView() {
                     <Table.Td>{v.frameNumber ?? '-'}</Table.Td>
                     <Table.Td>{v.year ?? '-'}</Table.Td>
                     <Table.Td>{v.nickname ?? '-'}</Table.Td>
-                    <Table.Td>-</Table.Td>
+                    <Table.Td>{v.recordsCount ?? 0}</Table.Td>
                     <Table.Td>
                       <Group gap="xs">
                         <ActionIcon size="sm" variant="subtle" onClick={(e) => { e.stopPropagation(); openEditVehicle(v, selectedCustomer); }}>

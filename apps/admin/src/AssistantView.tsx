@@ -30,6 +30,7 @@ const TYPE_LABEL: Record<string, string> = {
   add_number: 'Add number',
   edit_number: 'Edit number',
   merge: 'Merge duplicate',
+  substitute: 'Link substitutes',
 };
 
 const SUGGESTIONS = [

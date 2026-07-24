@@ -40,7 +40,13 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               MaterialPageRoute(
                 builder: (context) => CustomerEditScreen(customerId: widget.customerId),
               ),
-            ),
+            ).then((value) {
+              if (value == 'deleted') {
+                Navigator.pop(context);
+              } else {
+                setState(() {});
+              }
+            }),
           ),
         ],
       ),
@@ -125,7 +131,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                           MaterialPageRoute(
                             builder: (context) => VehicleDetailScreen(vehicleId: vehicle.id),
                           ),
-                        ),
+                        ).then((_) => setState(() {})),
                       ),
                     );
                   },
@@ -202,7 +208,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                               MaterialPageRoute(
                                 builder: (context) => RecordDetailScreen(recordId: record.id),
                               ),
-                            ),
+                            ).then((_) => setState(() {})),
                           ),
                         );
                       },

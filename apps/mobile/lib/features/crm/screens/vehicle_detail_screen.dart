@@ -34,9 +34,15 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const VehicleEditScreen(),
+                builder: (context) => VehicleEditScreen(vehicleId: widget.vehicleId),
               ),
-            ),
+            ).then((value) {
+              if (value == 'deleted') {
+                Navigator.pop(context);
+              } else {
+                setState(() {});
+              }
+            }),
           ),
         ],
       ),
@@ -161,7 +167,7 @@ class _VehicleDetailScreenState extends State<VehicleDetailScreen> {
                               MaterialPageRoute(
                                 builder: (context) => RecordDetailScreen(recordId: record.id),
                               ),
-                            ),
+                            ).then((_) => setState(() {})),
                           ),
                         );
                       },

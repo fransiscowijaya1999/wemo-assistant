@@ -110,6 +110,39 @@ class _CustomerEditScreenState extends State<CustomerEditScreen> {
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Customer' : 'New Customer'),
         actions: [
+          if (isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Customer'),
+                    content: const Text('Are you sure you want to delete this customer? This action cannot be undone.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && mounted) {
+                  final db = Provider.of<AppDatabase>(context, listen: false);
+                  final repository = CustomerRepository(db);
+                  await repository.deleteCustomer(widget.customerId!);
+                  if (mounted) {
+                    Navigator.pop(context, 'deleted');
+                  }
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _save,

@@ -26,7 +26,9 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   late TextEditingController _notesController;
 
   String? _selectedCustomerId;
+  String? _selectedCustomerName;
   String? _selectedMachineId;
+  String? _selectedMachineName;
   String? _selectedColorId;
 
   @override
@@ -61,16 +63,23 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     final vehicle = await repository.getVehicle(widget.vehicleId!);
 
     if (vehicle != null && mounted) {
-      setState(() {
-        _selectedCustomerId = vehicle.customerId;
-        _selectedMachineId = vehicle.machineId;
-        _selectedColorId = vehicle.colorId;
-        _licensePlateController.text = vehicle.licensePlate ?? '';
-        _frameNumberController.text = vehicle.frameNumber ?? '';
-        _nicknameController.text = vehicle.nickname ?? '';
-        _yearController.text = vehicle.year?.toString() ?? '';
-        _notesController.text = vehicle.notes ?? '';
-      });
+      final customer = await CustomerRepository(db).getCustomer(vehicle.customerId);
+      final machine = await (db.select(db.machines)..where((m) => m.id.equals(vehicle.machineId))).getSingleOrNull();
+
+      if (mounted) {
+        setState(() {
+          _selectedCustomerId = vehicle.customerId;
+          _selectedCustomerName = customer?.name;
+          _selectedMachineId = vehicle.machineId;
+          _selectedMachineName = machine == null ? null : '${machine.brand} ${machine.model}';
+          _selectedColorId = vehicle.colorId;
+          _licensePlateController.text = vehicle.licensePlate ?? '';
+          _frameNumberController.text = vehicle.frameNumber ?? '';
+          _nicknameController.text = vehicle.nickname ?? '';
+          _yearController.text = vehicle.year?.toString() ?? '';
+          _notesController.text = vehicle.notes ?? '';
+        });
+      }
     }
   }
 
@@ -126,9 +135,14 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     ));
     
     if (result != null && mounted) {
-      setState(() {
-        _selectedCustomerId = result;
-      });
+      final db = Provider.of<AppDatabase>(context, listen: false);
+      final customer = await CustomerRepository(db).getCustomer(result);
+      if (mounted) {
+        setState(() {
+          _selectedCustomerId = result;
+          _selectedCustomerName = customer?.name;
+        });
+      }
     }
   }
 
@@ -138,9 +152,14 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
     ));
     
     if (result != null && mounted) {
-      setState(() {
-        _selectedMachineId = result;
-      });
+      final db = Provider.of<AppDatabase>(context, listen: false);
+      final machine = await (db.select(db.machines)..where((m) => m.id.equals(result))).getSingleOrNull();
+      if (mounted) {
+        setState(() {
+          _selectedMachineId = result;
+          _selectedMachineName = machine == null ? null : '${machine.brand} ${machine.model}';
+        });
+      }
     }
   }
 
@@ -152,6 +171,39 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Vehicle' : 'New Vehicle'),
         actions: [
+          if (isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete Vehicle'),
+                    content: const Text('Are you sure you want to delete this vehicle? This action cannot be undone.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && mounted) {
+                  final db = Provider.of<AppDatabase>(context, listen: false);
+                  final repository = VehicleRepository(db);
+                  await repository.deleteVehicle(widget.vehicleId!);
+                  if (mounted) {
+                    Navigator.pop(context, 'deleted');
+                  }
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _save,
@@ -174,7 +226,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       child: Text(
                         _selectedCustomerId == null 
                           ? 'Select Customer' 
-                          : 'Customer: $_selectedCustomerId',
+                          : 'Customer: ${_selectedCustomerName ?? _selectedCustomerId}',
                       ),
                     ),
                   ),
@@ -191,7 +243,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
                       child: Text(
                         _selectedMachineId == null 
                           ? 'Select Machine' 
-                          : 'Machine: $_selectedMachineId',
+                          : 'Machine: ${_selectedMachineName ?? _selectedMachineId}',
                       ),
                     ),
                   ),
